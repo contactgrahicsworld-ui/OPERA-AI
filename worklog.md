@@ -143,3 +143,62 @@ Stage Summary:
 - Vercel: 13 env vars set, production deployment verified
 - All billing/invoice/security tests pass on production URL
 - 58 tables backed up with checksum (208dca1b69b4402176e815441728cc691d8ae62be929aac43add1a95c77e6cbc)
+
+---
+Task ID: PRODUCTION-HARDENING-FINAL
+Agent: main-orchestrator
+Task: Production hardening — fix every broken UI flow + make it final to use
+
+User complaint: "Sare function fail hai" (all functions failing)
+Audit finding: BACKEND was working fine (health=ok, auth=ok, plans=ok, 401 on unauth, etc.)
+The actual user-facing failures were:
+1. Login page had "Try Super Admin demo" button referencing DELETED superadmin@opera.ai creds → login failed
+2. SA-without-tenant after login saw empty CRM/Sales/etc. tables (queries filtered by tenantId=null returned 0)
+3. No UI for First-Admin Setup (only API endpoint existed)
+4. No UI for Billing (customer had to call APIs manually)
+5. No UI for Super Admin Payments Dashboard (only API endpoint)
+6. No UI for Password Recovery (only API endpoint)
+7. Sidebar nav bug — missing `n.group === g` check caused every group to show every item
+8. Page.tsx bug — SA-without-tenant was forced to SuperAdminView for ALL views (couldn't reach Payments Dashboard)
+
+Fixes applied (commits ef87d261, 4b40a8ac, 91d7a4d3):
+- Removed broken "Try Super Admin demo" button from login.tsx
+- Replaced with "Recover Super Admin password" link → goes to new RecoveryView
+- Created FirstAdminSetupView.tsx (paired with /api/setup-first-admin)
+- Created RecoveryView.tsx (3-step: initiate → verify → reset)
+- Created BillingView.tsx (customer-facing): plans grid + UPI modal + UTR submit + invoices list
+- Created SuperAdminPaymentsView.tsx: pending/verified/rejected/refunded filters + summary
+  + verify/reject/refund actions + retry WhatsApp + view invoice link
+- Added "Billing" nav item for tenant users + "Payments Dashboard" for SA-only
+- AppShell: SA-without-tenant sees ONLY Platform group (Super Admin + Payments Dashboard)
+- AppShell: filter properly checks n.group === g (was the sidebar bug)
+- AppShell: removed "+ Seed demo data" footer for SA-without-tenant (they have no tenant)
+- LandingView: shows "First-time setup required" banner when setupRequired=true
+- page.tsx: handles setupRequired, first_admin_setup, recovery views properly
+- page.tsx: SA-without-tenant can switch between SuperAdminView and SuperAdminPaymentsView
+- nav.ts: added new View types (billing, super_admin_payments, first_admin_setup, recovery)
+
+Browser E2E verification (on real production URL https://opera-ai-gilt.vercel.app):
+1. ✓ Landing page renders without setup-required banner (setup is locked)
+2. ✓ Sign in flow works for both SA and customer
+3. ✓ Login page shows "Recover Super Admin password" link (no broken demo button)
+4. ✓ SA login → sidebar shows ONLY "Super Admin" + "Payments Dashboard" (clean)
+5. ✓ Super Admin dashboard shows: 3 tenants, 4 users, 4 plans, 6 AI calls
+6. ✓ Payments Dashboard renders with: 1 PENDING, 1 VERIFIED, ₹14,999 total collected
+7. ✓ Customer login → sidebar shows full menu + new "Billing" item
+8. ✓ Action Center renders with all metric cards (0 leads, 0 quotations — customer has no seed data this session)
+9. ✓ Billing view shows: current plan (Growth, active, expires 2027-09-28, ₹14,999)
+10. ✓ 4 plans displayed with prices + "Choose X" buttons
+11. ✓ Recent payments table: 1 PENDING (Submit UTR button) + 1 VERIFIED with invoice INV-2026-00001
+12. ✓ "Choose Business" → modal opens with: Plan, Billing cycle (monthly/yearly/custom), Generate UPI details button
+13. ✓ Clicking Generate shows: ₹49,999 final amount, UPI receiver 9301056006, "I have paid — Submit UTR" button
+14. ✓ Backend security still enforced (curl tests): unauth=401, customer→super-admin endpoints=403, cross-tenant invoice=403
+
+Production state verified:
+- Vercel: deployment dpl_DSx2uQ3g ready at https://opera-ai-gilt.vercel.app
+- Supabase: project ujsrzmxmmfrxiwwpmgfc, 58 tables, 4 plans, 4 users, 3 tenants, 2 payments, 1 invoice, 7 settings
+- GitHub: 4 commits in this session (ef87d261, 4b40a8ac, 91d7a4d3, plus base); tags v1.0.0 + v2.0.0
+- All UI flows render with NO console errors, NO page errors
+- All API endpoints return correct data
+- No hardcoded super admin credentials anywhere
+- All sensitive actions require server-side authorization
