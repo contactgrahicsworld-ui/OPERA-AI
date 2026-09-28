@@ -194,9 +194,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const groupedNav = GROUP_ORDER.map((g) => ({
     group: g,
     items: NAV.filter((n) => {
+      // Must belong to this group
+      if (n.group !== g) return false;
       // Filter out super-admin-only items for non-SA users
       if (n.superAdminOnly && !user?.isSuperAdmin) return false;
-      // If user is SA without tenant, show only Platform items + Dashboard
+      // If user is SA without tenant, show only Platform items
       if (user?.isSuperAdmin && !user?.tenantId && n.group !== 'Platform') return false;
       return true;
     }),
