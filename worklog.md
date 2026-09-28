@@ -72,3 +72,74 @@ Stage Summary:
 - PWA installable (manifest + icons)
 - Mobile-first responsive (sidebar collapses to Sheet on small screens)
 - Industry-agnostic — adapts via Business DNA, no hardcoded industry workflows
+
+---
+Task ID: FINAL-DEPLOY
+Agent: main-orchestrator
+Task: Final production deploy — GitHub + Supabase + Vercel + honest SALES-READY report
+
+Work Log:
+- Backed up: source tarball, SQLite DB, Prisma schema, env map (in /home/z/my-project/backups/)
+- Pushed to GitHub: https://github.com/contactgrahicsworld-ui/OPERA-AI (tags: v1.0.0, v2.0.0)
+- Provisioned Supabase project "Opera AI" (ref: ujsrzmxmmfrxiwwpmgfc, region: ap-south-1, status: ACTIVE_HEALTHY)
+- Pushed 228 SQL statements (PostgreSQL schema with 58 tables — original 53 + 5 new for billing/recovery)
+- Seeded: 4 plans, 7 platform settings (including UPI_RECEIVER=9301056006), NO hardcoded super admin
+- Deployed to Vercel: project prj_3VJmEtX2nXpmkOt7befrk9do8QQv, URL https://opera-ai-gilt.vercel.app
+- Set 13 env vars on Vercel (DATABASE_URL, DIRECT_URL, NEXTAUTH_SECRET, SESSION_SECRET, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUPABASE_*, FIRST_ADMIN_SETUP_KEY, RECORDINGS_DIR)
+- DB password URL-encoded (! @ # → %21 %40 %23) — fixed "empty host in database URL" error
+
+NEW FEATURES IMPLEMENTED IN THIS RELEASE:
+- First super admin creation flow (NO hardcoded creds, locks after first creation)
+- Super admin password recovery via WhatsApp OTP (with manual fallback for dev/test)
+- UPI payment flow with server-controlled price calculation (customer cannot tamper)
+- UTR submission with unique constraint (prevents duplicate UTR use)
+- Super Admin verify-utr with idempotent invoice generation (INV-YYYY-NNNNN format)
+- SubscriptionInvoice model with full snapshot (company, plan, price, UTR, GST, dates)
+- WhatsApp delivery abstraction (NOT_CONFIGURED status by default — honest reporting)
+- Super Admin payment dashboard (pending/verified/rejected/refunded filters)
+- Super Admin plan CRUD (dynamic pricing/offers/durations — no hardcoded values)
+- Super Admin UPI receiver management (default 9301056006)
+- Customer billing view (current plan, payments, invoices, UPI QR data)
+- HTML invoice endpoint with tenant-scoped access + super admin override
+- Refactored verify-utr to avoid db.$transaction (Supabase pgbouncer compat)
+
+PRODUCTION SMOKE TEST RESULTS (all from real production URL):
+1. Health check: PASS (DB ok, 1234ms latency, tables ok)
+2. First-admin setup status (setupRequired:true): PASS
+3. Create first super admin: PASS (setup locked after)
+4. Setup is now LOCKED (setupRequired:false, setupDone:true): PASS
+5. Cannot create another super admin via setup endpoint: PASS (setup_locked)
+6. Invalid setup key rejected: PASS
+7. Login as new super admin: PASS
+8. Super Admin overview (1 tenant, 2 users, 4 plans, 4 AI calls): PASS
+9. Public plans endpoint (4 plans with dynamic pricing): PASS
+10. UPI receiver = 9301056006 (server-controlled): PASS
+11. Unauth access to super-admin: 401 (PASS)
+12. Customer signup: PASS (tenant + business DNA + workflows created)
+13. Customer billing view (plans + UPI + current subscription): PASS (after billing endpoint fix)
+14. Customer initiates payment (server-side price calc: ₹14,999 for Growth yearly): PASS
+15. Tampered price attempt (client sends finalAmount:100, server ignores — uses 1499900): PASS
+16. Customer submits UTR: PASS (status: PENDING_SUPER_ADMIN_VERIFICATION)
+17. Duplicate UTR rejected: PASS (unique constraint enforced)
+18. Super Admin sees pending payments: PASS
+19. Super Admin verifies UTR: PASS (invoice INV-2026-00001 generated, subscription active, expiry 2027-09-28)
+20. Second verify attempt idempotent (returns existing invoice, no double-activation): PASS
+21. Customer views invoice HTML: PASS (₹14,999 with company info, 3992 bytes)
+22. Customer billing shows active subscription after verify: PASS
+23. Cross-tenant invoice access: 403 (PASS — tenant isolation enforced)
+24. Unauth invoice access: 401 (PASS)
+25. Customer → super-admin endpoints: 403 (PASS — RBAC enforced)
+26. Customer → manage plans: 403 (PASS)
+27. Customer → refund own payment: 403 (PASS)
+28. Customer → change UPI receiver: 403 (PASS)
+29. Password recovery initiate: PASS (whatsappStatus: NOT_CONFIGURED — honest)
+30. Password recovery verify with correct code: PASS (verified: true)
+31. PWA manifest: PASS (name, short_name, theme_color, 2 icons)
+
+Stage Summary:
+- Production deployment is LIVE at https://opera-ai-gilt.vercel.app
+- GitHub: https://github.com/contactgrahicsworld-ui/OPERA-AI (tags: v1.0.0, v2.0.0)
+- Supabase: project ujsrzmxmmfrxiwwpmgfc, 58 tables, 4 plans, 1 verified payment + invoice
+- Vercel: 13 env vars set, production deployment verified
+- All billing/invoice/security tests pass on production URL
+- 58 tables backed up with checksum (208dca1b69b4402176e815441728cc691d8ae62be929aac43add1a95c77e6cbc)
