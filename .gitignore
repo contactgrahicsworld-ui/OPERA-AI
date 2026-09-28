@@ -54,3 +54,6 @@ skills/
 .secrets/
 .vercel
 .env*
+
+# Supabase CLI artifacts (CLI-managed)
+supabase/
