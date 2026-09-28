@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       where: { tenantId: ctx.tenantId },
       orderBy: { createdAt: 'desc' },
       take: 10,
-      include: { invoice: true, plan: false },
+      include: { invoice: true },
     });
 
     // Invoices for this tenant
