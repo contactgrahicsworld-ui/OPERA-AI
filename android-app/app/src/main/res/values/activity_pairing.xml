@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="OPERA AI"
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enter the 8-char pairing code shown in your web app"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <EditText
+        android:id="@+id/codeInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="PAIRING CODE"
+        android:inputType="textCapCharacters"
+        android:textSize="20sp"
+        android:textAlignment="center"
+        android:letterSpacing="0.2"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/pairBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Pair device"
+        android:backgroundTint="#0d9488"
+        android:textColor="#ffffff" />
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:textSize="14sp"
+        android:gravity="center" />
+
+</LinearLayout>
