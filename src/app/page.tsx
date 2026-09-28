@@ -143,12 +143,12 @@ export default function Home() {
   if (view === 'recovery') return <RecoveryView />;
   if (view === 'first_admin_setup') return <FirstAdminSetupView />;
 
-  // Super admin without tenant → can ONLY access super_admin view
+  // Super admin without tenant → can ONLY access Platform views (super_admin, super_admin_payments)
   if (user?.isSuperAdmin && !user?.tenantId) {
-    if (view === 'super_admin') {
-      return <AppShell><SuperAdminView /></AppShell>;
+    if (view === 'super_admin_payments') {
+      return <AppShell><SuperAdminPaymentsView /></AppShell>;
     }
-    // Force super admin without tenant to super_admin view only
+    // Default: super_admin view
     return <AppShell><SuperAdminView /></AppShell>;
   }
 
