@@ -2,21 +2,20 @@
 
 import { useState } from 'react';
 import { useNav } from '@/lib/nav';
-import { apiPost } from '@/lib/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2, Sparkles, Brain, LayoutDashboard as ActionIcon, Workflow, Shield, Smartphone, Globe } from 'lucide-react';
+import { Loader2, Sparkles, Brain, LayoutDashboard as ActionIcon, Workflow, Shield, Smartphone, Globe, AlertTriangle, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function LandingView() {
+export function LandingView({ setupRequired = false }: { setupRequired?: boolean }) {
   const { setView } = useNav();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Top nav */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30">
+      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backfilter]:bg-background/60 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">O</div>
@@ -28,6 +27,22 @@ export function LandingView() {
           </div>
         </div>
       </header>
+
+      {/* First-admin setup warning banner */}
+      {setupRequired && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">First-time platform setup required.</p>
+              <p className="text-xs text-amber-800/80">No Super Admin exists yet. Create the first Super Admin to take control of the platform.</p>
+            </div>
+            <Button size="sm" variant="default" onClick={() => setView('first_admin_setup')}>
+              <Crown className="h-4 w-4 mr-1.5" /> Create first Super Admin
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Hero */}
       <section className="flex-1 flex items-center bg-gradient-to-br from-primary/10 via-background to-background">
@@ -120,7 +135,7 @@ export function LandingView() {
         <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 text-xs text-muted-foreground flex flex-wrap items-center justify-between gap-2">
           <div>© {new Date().getFullYear()} OPERA AI · AI Business Operator</div>
           <div className="flex gap-3">
-            <span>v1.0.0</span>
+            <span>v2.0.0</span>
             <span>·</span>
             <span>Production SaaS</span>
           </div>

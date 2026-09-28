@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { useNav } from '@/lib/nav';
-import { apiPost, apiGet } from '@/lib/client';
+import { apiPost } from '@/lib/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ArrowLeft, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNav as useNav2 } from '@/lib/nav';
 
 export function LoginView() {
   const { setView } = useNav();
@@ -32,12 +33,6 @@ export function LoginView() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function demoLogin() {
-    setEmail('superadmin@opera.ai');
-    setPassword('superadmin123');
-    setTimeout(() => submit(), 100);
   }
 
   return (
@@ -85,14 +80,14 @@ export function LoginView() {
                 Start your 7-day free trial →
               </button>
             </div>
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-xs text-muted-foreground mb-1">Lost Super Admin access?</p>
+              <button onClick={() => setView('recovery')} className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" /> Recover Super Admin password
+              </button>
+            </div>
           </CardContent>
         </Card>
-
-        <div className="mt-4 text-center">
-          <button onClick={demoLogin} className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5" /> Try Super Admin demo
-          </button>
-        </div>
       </div>
     </div>
   );

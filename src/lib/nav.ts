@@ -44,7 +44,11 @@ export type View =
   | 'team'
   | 'business_dna'
   | 'analytics'
-  | 'super_admin';
+  | 'super_admin'
+  | 'billing'
+  | 'super_admin_payments'
+  | 'first_admin_setup'
+  | 'recovery';
 
 interface NavState {
   view: View;

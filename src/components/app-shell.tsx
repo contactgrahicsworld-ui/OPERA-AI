@@ -47,6 +47,7 @@ import {
   Search,
   ChevronDown,
   Loader2,
+  CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -132,6 +133,8 @@ const NAV: NavItem[] = [
   { id: 'audit', label: 'Audit Log', icon: ScrollText, group: 'Settings' },
 
   { id: 'super_admin', label: 'Super Admin', icon: Shield, group: 'Platform', superAdminOnly: true },
+  { id: 'super_admin_payments', label: 'Payments Dashboard', icon: CreditCard, group: 'Platform', superAdminOnly: true },
+  { id: 'billing', label: 'Billing', icon: CreditCard, group: 'AI' },
 ];
 
 const GROUP_ORDER = ['AI', 'CRM', 'Operations', 'Sales', 'Team', 'Inventory', 'Marketing', 'Settings', 'Platform'];
@@ -190,7 +193,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const groupedNav = GROUP_ORDER.map((g) => ({
     group: g,
-    items: NAV.filter((n) => n.group === g && (!n.superAdminOnly || user?.isSuperAdmin)),
+    items: NAV.filter((n) => {
+      // Filter out super-admin-only items for non-SA users
+      if (n.superAdminOnly && !user?.isSuperAdmin) return false;
+      // If user is SA without tenant, show only Platform items + Dashboard
+      if (user?.isSuperAdmin && !user?.tenantId && n.group !== 'Platform') return false;
+      return true;
+    }),
   })).filter((g) => g.items.length > 0);
 
   const sidebarContent = (
@@ -245,14 +254,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-2 space-y-1">
-        <button
-          onClick={seedDemoData}
-          className="w-full text-xs px-3 py-2 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground text-left"
-        >
-          + Seed demo data
-        </button>
-      </div>
+      {tenant && (
+        <div className="border-t border-sidebar-border p-2 space-y-1">
+          <button
+            onClick={seedDemoData}
+            className="w-full text-xs px-3 py-2 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground text-left"
+          >
+            + Seed demo data
+          </button>
+        </div>
+      )}
     </div>
   );
 
