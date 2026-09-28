@@ -1,0 +1,1076 @@
+// OPERA AI — AI Business Operator
+// Multi-tenant SaaS schema with strict tenant isolation.
+// Every tenant-scoped table has `tenantId` + compound unique + index.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// PLATFORM-LEVEL (not tenant-scoped)
+// ============================================================
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  status      String   @default("active") // active | suspended | trial | expired
+  planId      String?
+  trialEndsAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  plan                  Plan?                  @relation(fields: [planId], references: [id])
+  users                 User[]
+  businessProfile       BusinessProfile?
+  businessDNA           BusinessDNA?
+  pipelines             Pipeline[]
+  leads                 Lead[]
+  contacts              Contact[]
+  customers             Customer[]
+  companies             Company[]
+  deals                 Deal[]
+  activities            Activity[]
+  calls                 Call[]
+  meetings              Meeting[]
+  tasks                 Task[]
+  followUps             FollowUp[]
+  notes                 Note[]
+  documents             Document[]
+  quotations            Quotation[]
+  orders                Order[]
+  payments              Payment[]
+  invoices              Invoice[]
+  expenses              Expense[]
+  employees             Employee[]
+  departments           Department[]
+  attendance            Attendance[]
+  leaves                Leave[]
+  products              Product[]
+  warehouses            Warehouse[]
+  stockItems            StockItem[]
+  stockMovements        StockMovement[]
+  suppliers             Supplier[]
+  purchaseOrders        PurchaseOrder[]
+  campaigns             Campaign[]
+  leadSources           LeadSource[]
+  automations           Automation[]
+  automationRuns        AutomationRun[]
+  aiInsights            AIInsight[]
+  aiActions             AIAction[]
+  aiExecutions          AIExecution[]
+  customFields          CustomField[]
+  customFieldValues     CustomFieldValue[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  subscriptions         Subscription[]
+  aiUsageRecords        AIUsageRecord[]
+  workflowRuns          WorkflowRun[]
+  tags                  Tag[]
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  name          String   @unique // Starter | Growth | Business | Enterprise
+  description   String
+  priceMonthly  Int      @default(0) // in paise (INR) or smallest currency unit
+  priceYearly   Int      @default(0)
+  trialDays     Int      @default(7)
+  maxUsers      Int      @default(5)
+  maxStorageMb  Int      @default(1024)
+  maxAiCalls    Int      @default(100)
+  featuresCsv   String   @default("") // csv of feature flags
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenants       Tenant[]
+  subscriptions Subscription[]
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  role          String   @default("OWNER") // SUPER_ADMIN | OWNER | ADMIN | MANAGER | SALES | TELECALLER | FIELD_AGENT | HR | ACCOUNTANT | MARKETING | VIEWER
+  isSuperAdmin  Boolean  @default(false)
+  tenantId      String?
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant?  @relation(fields: [tenantId], references: [id])
+  leadsAssigned Lead[]
+  tasksAssigned Task[]   @relation("TaskAssignee")
+  tasksOwned    Task[]   @relation("TaskOwner")
+  calls         Call[]
+
+  @@index([tenantId])
+  @@index([role])
+}
+
+// ============================================================
+// BUSINESS PROFILE + BUSINESS DNA (AI-GENERATED)
+// ============================================================
+
+model BusinessProfile {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  businessName    String
+  businessType    String   @default("")
+  industry        String   @default("")
+  productsCsv     String   @default("")
+  servicesCsv     String   @default("")
+  customerTypes   String   @default("")
+  salesProcess    String   @default("")
+  leadSources     String   @default("")
+  teamStructure   String   @default("")
+  departments     String   @default("")
+  locations       String   @default("")
+  businessHours   String   @default("")
+  currency        String   @default("INR")
+  taxSettings     String   @default("{}")
+  usesInventory   Boolean  @default(false)
+  paymentProcess  String   @default("")
+  followUpProcess String   @default("")
+  customWorkflow  String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model BusinessDNA {
+  id                 String   @id @default(cuid())
+  tenantId           String   @unique
+    // Stored as JSON string (SQLite limitation on complex fields)
+  industry           String
+  businessModel      String
+  productsServices   String   // JSON
+  customerSegments   String   // JSON
+  salesStages        String   // JSON
+  operationalStages  String   // JSON
+  departments        String   // JSON
+  roles              String   // JSON
+  kpis               String   // JSON
+  workflowDefs       String   // JSON
+  automationOpps    String   // JSON
+  aiPriorities       String   // JSON
+  customFields       String   // JSON
+  terminology        String   // JSON
+  generatedBy        String   @default("ai") // ai | manual
+  version            Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+// ============================================================
+// CRM CORE
+// ============================================================
+
+model Pipeline {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  entity      String   @default("lead") // lead | deal | customer
+  stagesCsv   String   @default("New,Contacted,Qualified,Won,Lost")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  leads       Lead[]
+  deals       Deal[]
+
+  @@unique([tenantId, name, entity])
+  @@index([tenantId])
+}
+
+model Lead {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  email       String   @default("")
+  phone       String   @default("")
+  company     String   @default("")
+  source      String   @default("manual")
+  status      String   @default("New")
+  pipelineId  String?
+  stage       String   @default("New")
+  ownerId     String?
+  value       Int      @default(0)
+  priority    String   @default("medium")
+  tagsCsv     String   @default("")
+  notes       String   @default("")
+  lastActivityAt DateTime?
+  convertedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  owner       User?    @relation(fields: [ownerId], references: [id])
+  pipeline    Pipeline? @relation(fields: [pipelineId], references: [id])
+  activities  Activity[]
+  calls       Call[]
+  meetings    Meeting[]
+  followUps   FollowUp[]
+  tasks       Task[]
+  notesRel    Note[]
+  quotations  Quotation[]
+
+  @@unique([tenantId, email, phone])
+  @@index([tenantId, status])
+  @@index([tenantId, ownerId])
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  email       String   @default("")
+  phone       String   @default("")
+  companyId   String?
+  position    String   @default("")
+  isPrimary   Boolean  @default(false)
+  tagsCsv     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  company     Company?  @relation(fields: [companyId], references: [id])
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  website     String   @default("")
+  industry    String   @default("")
+  email       String   @default("")
+  phone       String   @default("")
+  address     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  contacts    Contact[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  email       String   @default("")
+  phone       String   @default("")
+  company     String   @default("")
+  type        String   @default("individual") // individual | business
+  status      String   @default("active") // active | inactive | churned
+  totalValue  Int      @default(0)
+  lastOrderAt DateTime?
+  tagsCsv     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  orders      Order[]
+  invoices    Invoice[]
+  payments    Payment[]
+
+  @@unique([tenantId, email, phone])
+  @@index([tenantId, status])
+}
+
+model Deal {
+  id          String   @id @default(cuid())
+  tenantId    String
+  title       String
+  customerId  String?
+  contactId   String?
+  value       Int      @default(0)
+  stage       String   @default("New")
+  pipelineId  String?
+  ownerId     String?
+  expectedCloseDate DateTime?
+  probability Int      @default(0)
+  closedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  pipeline    Pipeline? @relation(fields: [pipelineId], references: [id])
+  // owner referenced via ownerId only (no relation)
+
+  @@index([tenantId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String   // call | meeting | email | note | task | visit | other
+  title       String
+  description String   @default("")
+  leadId      String?
+  customerId  String?
+  ownerId     String?
+  outcome     String   @default("")
+  scheduledAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([tenantId, type])
+  @@index([leadId])
+}
+
+model Call {
+  id          String   @id @default(cuid())
+  tenantId    String
+  leadId      String?
+  customerId  String?
+  contactId   String?
+  callerId    String
+  direction   String   @default("outbound") // inbound | outbound
+  status      String   @default("planned") // planned | connected | missed | failed
+  outcome     String   @default("")
+  duration    Int      @default(0) // seconds
+  notes       String   @default("")
+  nextFollowUpAt DateTime?
+  telecaller  String   @default("") // human | ai
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+  caller      User     @relation(fields: [callerId], references: [id])
+
+  @@index([tenantId])
+  @@index([leadId])
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  tenantId    String
+  title       String
+  leadId      String?
+  customerId  String?
+  attendeeIds String   @default("") // csv of userIds
+  location    String   @default("")
+  scheduledAt DateTime
+  endedAt     DateTime?
+  notes       String   @default("")
+  outcome     String   @default("")
+  ownerId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([tenantId, scheduledAt])
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  tenantId    String
+  title       String
+  description String   @default("")
+  type        String   @default("general") // general | follow_up | collection | visit | call | custom
+  status      String   @default("open") // open | in_progress | done | overdue | cancelled
+  priority    String   @default("medium") // low | medium | high | urgent
+  dueDate     DateTime?
+  leadId      String?
+  customerId  String?
+  assigneeId  String?
+  ownerId     String?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+  assignee    User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  owner       User?    @relation("TaskOwner", fields: [ownerId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([assigneeId])
+  @@index([dueDate])
+}
+
+model FollowUp {
+  id          String   @id @default(cuid())
+  tenantId    String
+  leadId      String?
+  customerId  String?
+  title       String
+  dueAt       DateTime
+  completedAt DateTime?
+  ownerId     String?
+  outcome     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([tenantId, dueAt])
+}
+
+model Note {
+  id          String   @id @default(cuid())
+  tenantId    String
+  leadId      String?
+  customerId  String?
+  content     String
+  ownerId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  type        String   @default("file") // file | link | image
+  url         String
+  size        Int      @default(0)
+  mime        String   @default("")
+  leadId      String?
+  customerId  String?
+  ownerId     String?
+  isPrivate   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ============================================================
+// SALES ENGINE
+// ============================================================
+
+model Quotation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  number      String
+  leadId      String?
+  customerId  String?
+  subject     String
+  status      String   @default("draft") // draft | sent | approved | rejected | expired | converted
+  totalAmount Int      @default(0)
+  discount    Int      @default(0)
+  taxAmount   Int      @default(0)
+  currency    String   @default("INR")
+  validTill   DateTime?
+  sentAt      DateTime?
+  approvedAt  DateTime?
+  ownerId     String?
+  items       String   @default("[]") // JSON array
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+  orders      Order[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  tenantId    String
+  number      String
+  quotationId String?
+  customerId   String
+  status      String   @default("pending") // pending | confirmed | shipped | delivered | cancelled | returned
+  totalAmount Int      @default(0)
+  currency    String   @default("INR")
+  items       String   @default("[]")
+  ownerId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  customer    Customer @relation(fields: [customerId], references: [id])
+  quotation   Quotation? @relation(fields: [quotationId], references: [id])
+  payments    Payment[]
+  invoices    Invoice[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  number      String
+  customerId  String?
+  orderId     String?
+  invoiceId   String?
+  amount      Int
+  currency    String   @default("INR")
+  method      String   @default("cash") // cash | upi | card | bank | cheque | other
+  status      String   @default("received") // received | pending | failed | refunded
+  paidAt      DateTime
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  order       Order?   @relation(fields: [orderId], references: [id])
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([customerId])
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  tenantId    String
+  number      String
+  customerId  String
+  orderId     String?
+  amount      Int
+  taxAmount   Int      @default(0)
+  totalAmount Int
+  currency    String   @default("INR")
+  status      String   @default("unpaid") // unpaid | partial | paid | overdue | cancelled
+  dueDate     DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  customer    Customer @relation(fields: [customerId], references: [id])
+  order       Order?   @relation(fields: [orderId], references: [id])
+  payments    Payment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  tenantId    String
+  category    String   @default("general")
+  description String
+  amount      Int
+  currency    String   @default("INR")
+  paidBy      String?
+  paidAt      DateTime
+  receiptUrl  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, category])
+}
+
+// ============================================================
+// HRMS
+// ============================================================
+
+model Department {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  headId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  employees   Employee[]
+
+  @@unique([tenantId, name])
+}
+
+model Employee {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  name        String
+  email       String   @default("")
+  phone       String   @default("")
+  position    String   @default("")
+  departmentId String?
+  type        String   @default("full_time") // full_time | part_time | contract | intern
+  status      String   @default("active")
+  joinedAt    DateTime?
+  salary      Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  attendances  Attendance[]
+  leaves       Leave[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model Attendance {
+  id          String   @id @default(cuid())
+  tenantId    String
+  employeeId  String
+  date        DateTime
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      String   @default("present") // present | absent | leave | half_day | late
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([tenantId, employeeId, date])
+}
+
+model Leave {
+  id          String   @id @default(cuid())
+  tenantId    String
+  employeeId  String
+  type        String   @default("casual") // casual | sick | earned | unpaid | other
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("pending") // pending | approved | rejected | cancelled
+  reason      String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([tenantId, status])
+}
+
+// ============================================================
+// INVENTORY
+// ============================================================
+
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  sku         String   @default("")
+  type        String   @default("product") // product | service
+  category    String   @default("")
+  description String   @default("")
+  price       Int      @default(0)
+  cost        Int      @default(0)
+  unit        String   @default("unit")
+  taxRate     Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  stockItems  StockItem[]
+  movements   StockMovement[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+}
+
+model Warehouse {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  location    String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  stockItems  StockItem[]
+
+  @@unique([tenantId, name])
+}
+
+model StockItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  warehouseId String?
+  quantity    Int      @default(0)
+  reorderLevel Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+
+  @@unique([tenantId, productId, warehouseId])
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  type        String   // in | out | transfer | adjustment
+  quantity    Int
+  fromWarehouseId String?
+  toWarehouseId   String?
+  refType     String   @default("") // purchase | order | adjustment
+  refId       String?
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([tenantId, productId])
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  email       String   @default("")
+  phone       String   @default("")
+  address    String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, name])
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  tenantId    String
+  number      String
+  supplierId  String
+  status      String   @default("draft") // draft | sent | received | cancelled
+  totalAmount Int      @default(0)
+  items       String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([tenantId, number])
+}
+
+// ============================================================
+// MARKETING
+// ============================================================
+
+model Campaign {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  channel     String   @default("manual") // manual | email | social | web | sms
+  status      String   @default("planned")
+  budget      Int      @default(0)
+  spent      Int      @default(0)
+  leadsCount Int      @default(0)
+  conversions Int     @default(0)
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+}
+
+model LeadSource {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  type        String   @default("manual") // manual | web | api | csv | referral
+  leadsCount Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+}
+
+// ============================================================
+// AI BUSINESS BRAIN + ACTION CENTER
+// ============================================================
+
+model AIInsight {
+  id          String   @id @default(cuid())
+  tenantId    String
+  title       String
+  type        String   // risk | opportunity | anomaly | trend | recommendation
+  priority    String   @default("medium") // low | medium | high | urgent
+  evidence    String   // JSON array of supporting evidence
+  sourceRefs  String   @default("[]") // JSON of source record refs
+  recommendedAction String
+  confidence  Int      @default(50) // 0-100
+  uncertainty String   @default("")
+  category    String   @default("general") // sales | money | inventory | customer | operations | team
+  status      String   @default("active") // active | acknowledged | dismissed | resolved
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  actions     AIAction[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+}
+
+model AIAction {
+  id          String   @id @default(cuid())
+  tenantId    String
+  insightId  String?
+  title       String
+  description String   @default("")
+  category    String   @default("general") // follow_up | collection | restock | reengage | notify | custom
+  priority    String   @default("medium")
+  payload     String   @default("{}") // JSON action params
+  status      String   @default("pending") // pending | approved | rejected | executing | completed | failed | dismissed
+  requiresApproval Boolean @default(true)
+  approverId  String?
+  approvedAt  DateTime?
+  executorId  String?
+  executedAt  DateTime?
+  executionResult String @default("")
+  riskLevel   String   @default("low") // low | medium | high | critical
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  insight     AIInsight? @relation(fields: [insightId], references: [id])
+  executions  AIExecution[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+}
+
+model AIExecution {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actionId    String
+  status      String   @default("running") // running | success | failed | timeout
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  result      String   @default("")
+  error       String   @default("")
+  byUserId    String?
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  action      AIAction  @relation(fields: [actionId], references: [id])
+
+  @@index([actionId])
+}
+
+model AIUsageRecord {
+  id          String   @id @default(cuid())
+  tenantId    String
+  provider    String   @default("zai")
+  feature     String   // advisor | insight | action_gen | receptionist | telecaller
+  promptTokens Int     @default(0)
+  completionTokens Int  @default(0)
+  latencyMs   Int      @default(0)
+  success     Boolean  @default(true)
+  error       String   @default("")
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, feature])
+  @@index([createdAt])
+}
+
+// ============================================================
+// WORKFLOW ENGINE
+// ============================================================
+
+model Automation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  trigger     String   // new_lead | quotation_inactive | payment_overdue | low_stock | customer_inactive | manual | scheduled
+  conditions  String   @default("{}") // JSON
+  actions     String   @default("[]") // JSON array
+  requiresApproval Boolean @default(false)
+  isActive    Boolean  @default(true)
+  runCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  runs        AutomationRun[]
+
+  @@unique([tenantId, name])
+}
+
+model AutomationRun {
+  id          String   @id @default(cuid())
+  tenantId    String
+  automationId String
+  triggerRef  String   @default("")
+  status      String   @default("executed") // executed | failed | pending
+  result      String   @default("")
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  automation  Automation @relation(fields: [automationId], references: [id])
+
+  @@index([tenantId, automationId])
+}
+
+model WorkflowRun {
+  id          String   @id @default(cuid())
+  tenantId    String
+  workflowKey String
+  entityRef   String   @default("")
+  status      String   @default("completed")
+  steps       String   @default("[]")
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, workflowKey])
+}
+
+// ============================================================
+// CUSTOMIZATION
+// ============================================================
+
+model CustomField {
+  id          String   @id @default(cuid())
+  tenantId    String
+  entity      String   // lead | customer | contact | deal | quotation | order | task
+  key         String
+  label       String
+  type        String   @default("text") // text | number | date | select | multiselect | boolean
+  options     String   @default("[]")
+  isRequired  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  values      CustomFieldValue[]
+
+  @@unique([tenantId, entity, key])
+}
+
+model CustomFieldValue {
+  id          String   @id @default(cuid())
+  tenantId    String
+  fieldId     String
+  entity      String
+  recordId    String
+  value       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  field       CustomField @relation(fields: [fieldId], references: [id])
+
+  @@unique([tenantId, fieldId, recordId])
+  @@index([tenantId, entity, recordId])
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  color       String   @default("gray")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+}
+
+// ============================================================
+// PLATFORM SECURITY + OPS
+// ============================================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  action      String   // create | update | delete | approve | execute | login | logout | export
+  entity      String   @default("")
+  entityId    String   @default("")
+  details     String   @default("")
+  ip          String   @default("")
+  userAgent   String   @default("")
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, action])
+  @@index([createdAt])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  type        String   @default("info") // info | warning | critical | success
+  title       String
+  body        String   @default("")
+  link        String   @default("")
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, isRead])
+}
+
+model Subscription {
+  id          String   @id @default(cuid())
+  tenantId    String
+  planId      String
+  status      String   @default("trial") // trial | active | past_due | cancelled | expired
+  startedAt   DateTime @default(now())
+  endsAt      DateTime?
+  amount      Int      @default(0)
+  billingCycle String   @default("monthly")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  plan        Plan     @relation(fields: [planId], references: [id])
+
+  @@index([tenantId, status])
+}

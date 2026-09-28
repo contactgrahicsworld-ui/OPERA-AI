@@ -1,0 +1,25 @@
+{
+  "name": "OPERA AI — AI Business Operator",
+  "short_name": "OPERA AI",
+  "description": "AI Business Operator that helps you run any business. AI understands your business, identifies important situations, recommends actions, executes approved actions, and learns from results.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d9488",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "utilities"]
+}
