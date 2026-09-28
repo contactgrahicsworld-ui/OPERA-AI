@@ -1,10 +1,10 @@
-// OPERA AI — Seed data + initial super admin + plans
+// OPERA AI — Seed data + initial platform settings (NO hardcoded super admin)
+// Per spec: NO default super admin. First super admin must be created via /api/setup-first-admin.
 
 import { db } from './db';
-import bcrypt from 'bcryptjs';
 
 export async function ensureSeedData() {
-  // Plans
+  // Plans (if not exist)
   const planCount = await db.plan.count();
   if (planCount === 0) {
     const plans = [
@@ -18,19 +18,22 @@ export async function ensureSeedData() {
     }
   }
 
-  // Super Admin
-  const saCount = await db.user.count({ where: { isSuperAdmin: true } });
-  if (saCount === 0) {
-    const passwordHash = await bcrypt.hash('superadmin123', 10);
-    await db.user.create({
-      data: {
-        email: 'superadmin@opera.ai',
-        passwordHash,
-        name: 'Super Admin',
-        role: 'SUPER_ADMIN',
-        isSuperAdmin: true,
-        status: 'active',
-      },
-    });
+  // Platform settings (only if not exist)
+  const settingsCount = await db.platformSetting.count();
+  if (settingsCount === 0) {
+    const defaults = [
+      { key: 'UPI_RECEIVER', value: '9301056006', description: 'Default UPI receiver for subscription payments (Super Admin controlled)', isSecret: false },
+      { key: 'UPI_RECEIVER_NAME', value: 'OPERA AI Operations', description: 'Display name for UPI receiver', isSecret: false },
+      { key: 'FIRST_ADMIN_SETUP_DONE', value: 'false', description: 'Set to true after first Super Admin creation; locks the first-time-setup flow permanently', isSecret: false },
+      { key: 'WHATSAPP_PROVIDER', value: 'none', description: 'WhatsApp provider (none | twilio | meta | gupshup | interakt). Default none — WhatsApp is CONFIGURATION REQUIRED', isSecret: false },
+      { key: 'WHATSAPP_API_TOKEN', value: '', description: 'API token for WhatsApp provider (encrypted at rest)', isSecret: true },
+      { key: 'SUPER_ADMIN_WHATSAPP', value: '9301056006', description: 'Super Admin registered WhatsApp for password recovery', isSecret: false },
+    ];
+    for (const s of defaults) {
+      await db.platformSetting.create({ data: s });
+    }
   }
+
+  // CRITICAL: NO hardcoded super admin per spec.
+  // First super admin must be created via /api/setup-first-admin (locks after first creation).
 }

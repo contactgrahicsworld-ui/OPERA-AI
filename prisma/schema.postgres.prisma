@@ -74,6 +74,8 @@ model Tenant {
   devices Device[]
   recordings Recording[]
   transcripts Transcript[]
+  subscriptionPayments SubscriptionPayment[]
+  subscriptionInvoices SubscriptionInvoice[]
 }
 
 model Plan {
@@ -1050,3 +1052,130 @@ model Device {
   tenant Tenant @relation(fields: [tenantId], references: [id])
   @@index([tenantId, isApproved])
 }
+
+// ============================================================
+// SUBSCRIPTION PAYMENTS + INVOICES + RECOVERY (NEW)
+// ============================================================
+
+model SubscriptionPayment {
+  id String @id @default(cuid())
+  tenantId String
+  userId String? // customer who initiated
+  planId String // plan at time of purchase
+  planNameSnapshot String
+  priceSnapshot Int // paise
+  discountSnapshot Int @default(0) // paise
+  finalAmountSnapshot Int // paise — server-computed
+  durationDaysSnapshot Int
+  billingCycleSnapshot String // monthly | yearly | custom
+  upiReceiverSnapshot String // 9301056006 (or whatever super admin sets)
+  utr String? @unique // customer-submitted UTR
+  utrSubmittedAt DateTime?
+  paymentDate DateTime? // when UTR submitted
+  status String @default("PENDING") // PENDING | VERIFIED | REJECTED | REFUNDED
+  verifiedById String? // super admin who verified
+  verifiedAt DateTime?
+  rejectionReason String?
+  refundStatus String? // null | PENDING | PROCESSED
+  refundAmount Int?
+  refundReason String?
+  refundProcessedAt DateTime?
+  whatsappStatus String @default("NOT_CONFIGURED") // NOT_CONFIGURED | QUEUED | SENDING | SENT | DELIVERED | FAILED
+  whatsappSentAt DateTime?
+  whatsappDeliveredAt DateTime?
+  whatsappAttempts Int @default(0)
+  whatsappLastError String?
+  invoiceId String? @unique // generated only after VERIFIED
+  subscriptionId String? // updated when subscription activates
+  auditTrail Json @default("[]") // [{action, by, at, ip, details}]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  invoice SubscriptionInvoice?
+  @@index([tenantId, status])
+  @@index([status])
+  @@index([utr])
+}
+
+model SubscriptionInvoice {
+  id String @id @default(cuid())
+  tenantId String
+  paymentId String @unique // one-to-one with SubscriptionPayment
+  invoiceNumber String @unique
+  invoiceDate DateTime @default(now())
+  companyName String
+  companyAddress String @default("")
+  companyContact String @default("")
+  companyGst String @default("")
+  planName String
+  durationDays Int
+  startDate DateTime
+  expiryDate DateTime
+  originalAmount Int // paise
+  discountAmount Int @default(0) // paise
+  finalAmount Int // paise
+  paymentMethod String @default("UPI")
+  utr String
+  paymentDate DateTime
+  superAdminName String
+  superAdminBusinessName String @default("OPERA AI")
+  superAdminContact String @default("")
+  superAdminGst String @default("")
+  taxRate Int @default(0) // percent, 0 if not configured
+  taxAmount Int @default(0) // paise
+  totalWithTax Int // paise
+  // WhatsApp delivery status duplicated here for denormalised access
+  whatsappStatus String @default("NOT_CONFIGURED")
+  pdfUrl String? // generated PDF storage URL
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  payment SubscriptionPayment @relation(fields: [paymentId], references: [id])
+  @@index([tenantId])
+  @@index([invoiceDate])
+}
+
+model PasswordRecovery {
+  id String @id @default(cuid())
+  userId String? @unique // super admin user
+  email String
+  whatsappNumber String // registered mobile
+  codeHash String // hashed one-time code (NEVER store plaintext)
+  attempts Int @default(0)
+  maxAttempts Int @default(5)
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  usedFor String @default("PASSWORD_RESET") // PASSWORD_RESET
+  // Status derived: if consumedAt != null -> USED; if expiresAt < now -> EXPIRED; else ACTIVE
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model PlatformSetting {
+  id String @id @default(cuid())
+  key String @unique
+  value String
+  description String @default("")
+  isSecret Boolean @default(false)
+  updatedAt DateTime @updatedAt
+  updatedById String?
+  @@index([key])
+}
+
+model AuditTrailEntry {
+  id String @id @default(cuid())
+  tenantId String?
+  userId String?
+  action String
+  entity String @default("")
+  entityId String @default("")
+  details Json @default("{}")
+  ip String @default("")
+  userAgent String @default("")
+  severity String @default("info") // info | warning | critical
+  createdAt DateTime @default(now())
+  @@index([tenantId, action])
+  @@index([createdAt])
+}
+

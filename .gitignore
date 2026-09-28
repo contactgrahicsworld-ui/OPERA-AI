@@ -49,3 +49,8 @@ tmp/
 # Environment-specific skills (not part of OPERA AI source)
 skills/
 .zscripts/
+
+# Secrets (NEVER commit)
+.secrets/
+.vercel
+.env*
