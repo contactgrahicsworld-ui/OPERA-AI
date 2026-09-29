@@ -202,3 +202,63 @@ Production state verified:
 - All API endpoints return correct data
 - No hardcoded super admin credentials anywhere
 - All sensitive actions require server-side authorization
+
+---
+Task ID: PRODUCTION-FINAL-FIX
+Agent: main-orchestrator
+Task: Real root cause of "sare function fail hai" complaint
+
+User complaint: "Leads Customers Contacts Companies Deals Operations Tasks... nothing work .1% properly"
+
+ACTUAL ROOT CAUSE (real, not UI-only):
+The previous session claimed the backend was healthy. FALSE. Backend APIs were failing because:
+
+1. POST handlers used `data: { tenantId, ... }` shorthand — but `tenantId` was NOT a local variable in scope → JavaScript ReferenceError "tenantId is not defined" → every POST returned {error: "server_error", message: "tenantId is not defined"}
+
+2. Routes referenced SQLite-only field names like `tagsCsv`, `items: JSON.stringify(...)`, `auditTrail: JSON.stringify(...)` — but production uses PostgreSQL schema where these fields are:
+   - `tags String[]` (not tagsCsv String)
+   - `items Json` (native JSON, not string)
+   - `auditTrail Json` (native JSON)
+   - `attendeeIds String[]`
+   - `stages String[]`
+   - `options Json`
+   - `conditions Json`
+   - `actions Json`
+   → Even GET failed with "Unknown field tagsCsv" because the select referenced non-existent fields
+
+3. Search OR clause tried to query fields that don't exist on each model (e.g., 'title' on Lead, 'subject' on Customer) — every search would fail
+
+4. PATCH update data included ALL fields even when not provided — would null out non-provided fields
+
+FIX APPLIED (commit 9dae4f6 — regenerated all 30 entity routes):
+- POST: use `ctx.tenantId!` (not shorthand)
+- Field names match prisma/schema.postgres.prisma exactly (tags String[], items Json, etc.)
+- Search uses model-specific field list (e.g., ['name', 'email', 'phone', 'company'] for Lead)
+- PATCH: build update data conditionally — only includes provided fields
+- Workflow trigger wrapped in try/catch (failure doesn't break creation)
+- ResourceView frontend fixes:
+  - Form sends tags as Array (not CSV) — matches Postgres String[] type
+  - Cell renderer handles both Array (new) and CSV (legacy) formats
+  - Form init handles Array coming back from API (was splitting string)
+
+PRODUCTION VERIFICATION (after fresh deploy to opera-ai-gilt.vercel.app):
+- 23/27 entity APIs return data successfully on GET
+- 23/27 entity APIs accept POST and create records successfully
+- The 4 failures (orders, payments, invoices, purchase_orders) failed CORRECTLY with foreign key constraint — they require valid customerId/supplierId references
+- Browser E2E: Customer login → click Leads → see list of 2 leads → click "New Lead" → fill form → click Create → modal closes → new lead appears at top of list as "Browser Test Lead" → zero console errors
+
+Browser-verified views (all render with content, no errors):
+- Leads (showed 3 leads after creation)
+- Customers (renders with empty state)
+- Tasks (renders with empty state)
+- Products (renders with empty state)
+- Automations (renders with empty state)
+- Action Center (renders, shows "AI Actions 0, AI Insights 0" — customer has no AI data this session)
+- Analytics (renders with 30-day chart)
+
+DB state after testing:
+- 10 leads, 5 customers, 4 tasks, 3 quotations, 1 product, 1 campaign, 16 automations
+- All created successfully via API + UI
+
+Deployed commit: 9dae4f6 (https://github.com/contactgrahicsworld-ui/OPERA-AI)
+Production URL: https://opera-ai-gilt.vercel.app
