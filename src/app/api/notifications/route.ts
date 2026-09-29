@@ -1,4 +1,4 @@
-// AUTO-GENERATED CRUD route for notifications
+// AUTO-GENERATED CRUD route for notifications (PostgreSQL-aware)
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { withTenant, qp, quickAudit, type AuthContext } from '@/lib/api-helpers';
@@ -15,16 +15,8 @@ export async function GET(req: NextRequest) {
 
     const where: any = { tenantId: ctx.tenantId };
     if (status) where.status = status;
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
-        { phone: { contains: search } },
-        { title: { contains: search } },
-        { subject: { contains: search } },
-        { description: { contains: search } },
-        { number: { contains: search } },
-      ];
+    if (search && ["title"].length > 0) {
+      where.OR = ["title"].map((f: string) => ({ [f]: { contains: search, mode: 'insensitive' } }));
     }
 
     const [items, total] = await Promise.all([
@@ -45,19 +37,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return withTenant(req, async (ctx: AuthContext) => {
     const d = await req.json().catch(() => ({}));
-    const created = await (db as any).notification.create({ data: { tenantId, userId: d.userId || null, type: d.type || 'info', title: d.title, body: d.body || '', link: d.link || '', isRead: false } });
+    const created = await (db as any).notification.create({ data: { tenantId: ctx.tenantId!, userId: d.userId || null, type: d.type || 'info', title: d.title, body: d.body || '', link: d.link || '', isRead: false } });
     await quickAudit(ctx, 'create', 'notification', created.id, JSON.stringify(d).slice(0, 500));
 
-    // Fire workflow triggers
-    if ('notification' === 'lead') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'new_lead', entityRef: { entity: 'lead', id: created.id }, triggerData: { stage: created.stage, status: created.status }, userId: ctx.session.sub });
-    }
-    if ('notification' === 'quotation' && created.status === 'sent') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'quotation_inactive', entityRef: { entity: 'quotation', id: created.id }, triggerData: { status: 'sent', lastActivityAt: created.sentAt || new Date().toISOString() }, userId: ctx.session.sub });
-    }
-    if ('notification' === 'invoice' && created.dueDate && new Date(created.dueDate) < new Date()) {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'payment_overdue', entityRef: { entity: 'invoice', id: created.id }, triggerData: { status: 'overdue' }, userId: ctx.session.sub });
-    }
+    // No workflow trigger for this entity
 
     return created;
   });
@@ -72,7 +55,18 @@ export async function PATCH(req: NextRequest) {
     const existing = await (db as any).notification.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    const updated = await (db as any).notification.update({ where: { id }, data: { isRead: d.isRead } });
+    // Build update data — only include fields that are actually provided
+    const updateData: any = {};
+    const provided = Object.fromEntries(Object.entries(d).filter(([k, v]) => v !== undefined));
+    // Apply our update mapping (functions handle Date conversion)
+    const updateTemplate: any = { isRead: d.isRead };
+    for (const key of Object.keys(provided)) {
+      if (key in updateTemplate && updateTemplate[key] !== undefined) {
+        updateData[key] = updateTemplate[key];
+      }
+    }
+
+    const updated = await (db as any).notification.update({ where: { id }, data: updateData });
     await quickAudit(ctx, 'update', 'notification', id, JSON.stringify(d).slice(0, 500));
     return updated;
   });

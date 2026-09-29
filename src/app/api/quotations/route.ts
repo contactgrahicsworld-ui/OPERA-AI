@@ -1,4 +1,4 @@
-// AUTO-GENERATED CRUD route for quotations
+// AUTO-GENERATED CRUD route for quotations (PostgreSQL-aware)
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { withTenant, qp, quickAudit, type AuthContext } from '@/lib/api-helpers';
@@ -15,16 +15,8 @@ export async function GET(req: NextRequest) {
 
     const where: any = { tenantId: ctx.tenantId };
     if (status) where.status = status;
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
-        { phone: { contains: search } },
-        { title: { contains: search } },
-        { subject: { contains: search } },
-        { description: { contains: search } },
-        { number: { contains: search } },
-      ];
+    if (search && ["number","subject"].length > 0) {
+      where.OR = ["number","subject"].map((f: string) => ({ [f]: { contains: search, mode: 'insensitive' } }));
     }
 
     const [items, total] = await Promise.all([
@@ -45,18 +37,22 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return withTenant(req, async (ctx: AuthContext) => {
     const d = await req.json().catch(() => ({}));
-    const created = await (db as any).quotation.create({ data: { tenantId, number: d.number || ('Q-' + Date.now()), leadId: d.leadId || null, customerId: d.customerId || null, subject: d.subject, status: d.status || 'draft', totalAmount: d.totalAmount || 0, discount: d.discount || 0, taxAmount: d.taxAmount || 0, currency: d.currency || 'INR', validTill: d.validTill ? new Date(d.validTill) : null, ownerId: ctx.session.sub, items: JSON.stringify(d.items || []) } });
+    const created = await (db as any).quotation.create({ data: { tenantId: ctx.tenantId!, number: d.number || ('Q-' + Date.now()), leadId: d.leadId || null, customerId: d.customerId || null, subject: d.subject, status: d.status || 'draft', totalAmount: d.totalAmount || 0, discount: d.discount || 0, taxAmount: d.taxAmount || 0, currency: d.currency || 'INR', validTill: d.validTill ? new Date(d.validTill) : null, ownerId: ctx.session.sub, items: d.items || [] } });
     await quickAudit(ctx, 'create', 'quotation', created.id, JSON.stringify(d).slice(0, 500));
 
-    // Fire workflow triggers
-    if ('quotation' === 'lead') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'new_lead', entityRef: { entity: 'lead', id: created.id }, triggerData: { stage: created.stage, status: created.status }, userId: ctx.session.sub });
-    }
-    if ('quotation' === 'quotation' && created.status === 'sent') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'quotation_inactive', entityRef: { entity: 'quotation', id: created.id }, triggerData: { status: 'sent', lastActivityAt: created.sentAt || new Date().toISOString() }, userId: ctx.session.sub });
-    }
-    if ('quotation' === 'invoice' && created.dueDate && new Date(created.dueDate) < new Date()) {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'payment_overdue', entityRef: { entity: 'invoice', id: created.id }, triggerData: { status: 'overdue' }, userId: ctx.session.sub });
+    // Fire workflow trigger
+    if (created.id) {
+      try {
+        await runWorkflow({
+          tenantId: ctx.tenantId!,
+          trigger: "quotation_inactive",
+          entityRef: { entity: 'quotation', id: created.id },
+          triggerData: { status: created.status, stage: created.stage },
+          userId: ctx.session.sub,
+        });
+      } catch (e) {
+        console.error('[workflow] trigger failed', e);
+      }
     }
 
     return created;
@@ -72,7 +68,18 @@ export async function PATCH(req: NextRequest) {
     const existing = await (db as any).quotation.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    const updated = await (db as any).quotation.update({ where: { id }, data: { subject: d.subject, status: d.status, totalAmount: d.totalAmount, discount: d.discount, taxAmount: d.taxAmount, validTill: d.validTill ? new Date(d.validTill) : null, sentAt: d.status === 'sent' ? new Date() : undefined, approvedAt: d.status === 'approved' ? new Date() : undefined, items: JSON.stringify(d.items || []) } });
+    // Build update data — only include fields that are actually provided
+    const updateData: any = {};
+    const provided = Object.fromEntries(Object.entries(d).filter(([k, v]) => v !== undefined));
+    // Apply our update mapping (functions handle Date conversion)
+    const updateTemplate: any = { subject: d.subject, status: d.status, totalAmount: d.totalAmount, discount: d.discount, taxAmount: d.taxAmount, validTill: d.validTill ? new Date(d.validTill) : null, sentAt: d.status === 'sent' ? new Date() : undefined, approvedAt: d.status === 'approved' ? new Date() : undefined, items: d.items || [] };
+    for (const key of Object.keys(provided)) {
+      if (key in updateTemplate && updateTemplate[key] !== undefined) {
+        updateData[key] = updateTemplate[key];
+      }
+    }
+
+    const updated = await (db as any).quotation.update({ where: { id }, data: updateData });
     await quickAudit(ctx, 'update', 'quotation', id, JSON.stringify(d).slice(0, 500));
     return updated;
   });

@@ -266,14 +266,16 @@ function CellRenderer({ field, value, item }: { field: FieldDef; value: any; ite
     return <Badge variant="secondary" className={tone}>{value}</Badge>;
   }
   if (field.type === 'tags') {
-    const tags = String(value || '').split(',').filter(Boolean);
-    if (tags.length === 0) return <span className="text-muted-foreground">—</span>;
+    // Tags stored as native String[] in Postgres; but support legacy CSV string too
+    const tags = Array.isArray(value) ? value : (typeof value === 'string' ? String(value).split(',') : []);
+    const filtered = tags.filter(Boolean);
+    if (filtered.length === 0) return <span className="text-muted-foreground">—</span>;
     return (
       <div className="flex flex-wrap gap-1">
-        {tags.slice(0, 3).map((t) => (
+        {filtered.slice(0, 3).map((t: string) => (
           <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
         ))}
-        {tags.length > 3 && <Badge variant="outline" className="text-[10px]">+{tags.length - 3}</Badge>}
+        {filtered.length > 3 && <Badge variant="outline" className="text-[10px]">+{filtered.length - 3}</Badge>}
       </div>
     );
   }
@@ -318,7 +320,11 @@ function ResourceForm({
       const init: Record<string, any> = {};
       for (const f of config.fields) {
         let v = initial?.[f.key] ?? '';
-        if (f.type === 'tags' && typeof v === 'string') v = v.split(',').filter(Boolean);
+        // Tags come back as array from Postgres; if string (legacy), split it
+        if (f.type === 'tags') {
+          if (typeof v === 'string') v = v.split(',').filter(Boolean);
+          else if (!Array.isArray(v)) v = [];
+        }
         if ((f.type === 'date' || f.type === 'datetime-local') && v) {
           try {
             v = new Date(v).toISOString().slice(0, f.type === 'date' ? 10 : 16);
@@ -337,16 +343,17 @@ function ResourceForm({
   async function save() {
     setSaving(true);
     try {
-      // Build payload: convert tags arrays to CSV, numbers to numbers
+      // Build payload: tags stay as array (Postgres String[]), numbers coerced
       const payload: Record<string, any> = {};
       for (const f of config.fields) {
         let v = values[f.key];
-        if (v === undefined || v === '') {
+        if (v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) {
           if (f.required) throw new Error(`${f.label} is required`);
           continue;
         }
         if (f.type === 'number') v = Number(v);
-        if (f.type === 'tags' && Array.isArray(v)) v = v.join(','); // tags saved as CSV by API
+        // tags stay as array — postgres schema uses String[]
+        if (f.type === 'tags' && typeof v === 'string') v = v.split(',').map((s: string) => s.trim()).filter(Boolean);
         payload[f.key] = v;
       }
       if (mode === 'create') {

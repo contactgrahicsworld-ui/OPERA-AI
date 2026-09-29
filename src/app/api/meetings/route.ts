@@ -1,4 +1,4 @@
-// AUTO-GENERATED CRUD route for meetings
+// AUTO-GENERATED CRUD route for meetings (PostgreSQL-aware)
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { withTenant, qp, quickAudit, type AuthContext } from '@/lib/api-helpers';
@@ -15,16 +15,8 @@ export async function GET(req: NextRequest) {
 
     const where: any = { tenantId: ctx.tenantId };
     if (status) where.status = status;
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
-        { phone: { contains: search } },
-        { title: { contains: search } },
-        { subject: { contains: search } },
-        { description: { contains: search } },
-        { number: { contains: search } },
-      ];
+    if (search && ["title","notes"].length > 0) {
+      where.OR = ["title","notes"].map((f: string) => ({ [f]: { contains: search, mode: 'insensitive' } }));
     }
 
     const [items, total] = await Promise.all([
@@ -45,19 +37,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return withTenant(req, async (ctx: AuthContext) => {
     const d = await req.json().catch(() => ({}));
-    const created = await (db as any).meeting.create({ data: { tenantId, title: d.title, leadId: d.leadId || null, customerId: d.customerId || null, attendeeIds: (d.attendeeIds || []).join(','), location: d.location || '', scheduledAt: new Date(d.scheduledAt), endedAt: d.endedAt ? new Date(d.endedAt) : null, notes: d.notes || '', outcome: d.outcome || '', ownerId: ctx.session.sub } });
+    const created = await (db as any).meeting.create({ data: { tenantId: ctx.tenantId!, title: d.title, leadId: d.leadId || null, customerId: d.customerId || null, attendeeIds: d.attendeeIds || [], location: d.location || '', scheduledAt: d.scheduledAt ? new Date(d.scheduledAt) : new Date(), endedAt: d.endedAt ? new Date(d.endedAt) : null, notes: d.notes || '', outcome: d.outcome || '', ownerId: ctx.session.sub } });
     await quickAudit(ctx, 'create', 'meeting', created.id, JSON.stringify(d).slice(0, 500));
 
-    // Fire workflow triggers
-    if ('meeting' === 'lead') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'new_lead', entityRef: { entity: 'lead', id: created.id }, triggerData: { stage: created.stage, status: created.status }, userId: ctx.session.sub });
-    }
-    if ('meeting' === 'quotation' && created.status === 'sent') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'quotation_inactive', entityRef: { entity: 'quotation', id: created.id }, triggerData: { status: 'sent', lastActivityAt: created.sentAt || new Date().toISOString() }, userId: ctx.session.sub });
-    }
-    if ('meeting' === 'invoice' && created.dueDate && new Date(created.dueDate) < new Date()) {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'payment_overdue', entityRef: { entity: 'invoice', id: created.id }, triggerData: { status: 'overdue' }, userId: ctx.session.sub });
-    }
+    // No workflow trigger for this entity
 
     return created;
   });
@@ -72,7 +55,18 @@ export async function PATCH(req: NextRequest) {
     const existing = await (db as any).meeting.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    const updated = await (db as any).meeting.update({ where: { id }, data: { title: d.title, attendeeIds: (d.attendeeIds || []).join(','), location: d.location, scheduledAt: new Date(d.scheduledAt), endedAt: d.endedAt ? new Date(d.endedAt) : null, notes: d.notes, outcome: d.outcome } });
+    // Build update data — only include fields that are actually provided
+    const updateData: any = {};
+    const provided = Object.fromEntries(Object.entries(d).filter(([k, v]) => v !== undefined));
+    // Apply our update mapping (functions handle Date conversion)
+    const updateTemplate: any = { title: d.title, attendeeIds: d.attendeeIds || [], location: d.location, scheduledAt: d.scheduledAt ? new Date(d.scheduledAt) : undefined, endedAt: d.endedAt ? new Date(d.endedAt) : null, notes: d.notes, outcome: d.outcome };
+    for (const key of Object.keys(provided)) {
+      if (key in updateTemplate && updateTemplate[key] !== undefined) {
+        updateData[key] = updateTemplate[key];
+      }
+    }
+
+    const updated = await (db as any).meeting.update({ where: { id }, data: updateData });
     await quickAudit(ctx, 'update', 'meeting', id, JSON.stringify(d).slice(0, 500));
     return updated;
   });

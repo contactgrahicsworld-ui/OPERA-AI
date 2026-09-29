@@ -1,4 +1,4 @@
-// AUTO-GENERATED CRUD route for leads
+// AUTO-GENERATED CRUD route for leads (PostgreSQL-aware)
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { withTenant, qp, quickAudit, type AuthContext } from '@/lib/api-helpers';
@@ -15,22 +15,14 @@ export async function GET(req: NextRequest) {
 
     const where: any = { tenantId: ctx.tenantId };
     if (status) where.status = status;
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
-        { phone: { contains: search } },
-        { title: { contains: search } },
-        { subject: { contains: search } },
-        { description: { contains: search } },
-        { number: { contains: search } },
-      ];
+    if (search && ["name","email","phone","company"].length > 0) {
+      where.OR = ["name","email","phone","company"].map((f: string) => ({ [f]: { contains: search, mode: 'insensitive' } }));
     }
 
     const [items, total] = await Promise.all([
       (db as any).lead.findMany({
         where,
-        select: { id: true, name: true, email: true, phone: true, company: true, status: true, stage: true, ownerId: true, value: true, priority: true, tagsCsv: true, notes: true, lastActivityAt: true, convertedAt: true, createdAt: true, updatedAt: true },
+        select: { id: true, name: true, email: true, phone: true, company: true, status: true, stage: true, ownerId: true, value: true, priority: true, tags: true, notes: true, lastActivityAt: true, convertedAt: true, createdAt: true, updatedAt: true },
         orderBy: { createdAt: 'desc' },
         take: Math.min(limit, 200),
         skip: offset,
@@ -45,18 +37,22 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return withTenant(req, async (ctx: AuthContext) => {
     const d = await req.json().catch(() => ({}));
-    const created = await (db as any).lead.create({ data: { tenantId, name: d.name, email: d.email || '', phone: d.phone || '', company: d.company || '', source: d.source || 'manual', status: d.status || 'New', stage: d.stage || 'New', ownerId: d.ownerId || null, value: d.value || 0, priority: d.priority || 'medium', tagsCsv: (d.tags || []).join(','), notes: d.notes || '' } });
+    const created = await (db as any).lead.create({ data: { tenantId: ctx.tenantId!, name: d.name, email: d.email || '', phone: d.phone || '', company: d.company || '', source: d.source || 'manual', status: d.status || 'New', stage: d.stage || 'New', ownerId: d.ownerId || null, value: d.value || 0, priority: d.priority || 'medium', tags: d.tags || [], notes: d.notes || '' } });
     await quickAudit(ctx, 'create', 'lead', created.id, JSON.stringify(d).slice(0, 500));
 
-    // Fire workflow triggers
-    if ('lead' === 'lead') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'new_lead', entityRef: { entity: 'lead', id: created.id }, triggerData: { stage: created.stage, status: created.status }, userId: ctx.session.sub });
-    }
-    if ('lead' === 'quotation' && created.status === 'sent') {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'quotation_inactive', entityRef: { entity: 'quotation', id: created.id }, triggerData: { status: 'sent', lastActivityAt: created.sentAt || new Date().toISOString() }, userId: ctx.session.sub });
-    }
-    if ('lead' === 'invoice' && created.dueDate && new Date(created.dueDate) < new Date()) {
-      await runWorkflow({ tenantId: ctx.tenantId, trigger: 'payment_overdue', entityRef: { entity: 'invoice', id: created.id }, triggerData: { status: 'overdue' }, userId: ctx.session.sub });
+    // Fire workflow trigger
+    if (created.id) {
+      try {
+        await runWorkflow({
+          tenantId: ctx.tenantId!,
+          trigger: "new_lead",
+          entityRef: { entity: 'lead', id: created.id },
+          triggerData: { status: created.status, stage: created.stage },
+          userId: ctx.session.sub,
+        });
+      } catch (e) {
+        console.error('[workflow] trigger failed', e);
+      }
     }
 
     return created;
@@ -72,7 +68,18 @@ export async function PATCH(req: NextRequest) {
     const existing = await (db as any).lead.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    const updated = await (db as any).lead.update({ where: { id }, data: { name: d.name, email: d.email, phone: d.phone, company: d.company, source: d.source, status: d.status, stage: d.stage, ownerId: d.ownerId, value: d.value, priority: d.priority, tagsCsv: (d.tags || []).join(','), notes: d.notes, lastActivityAt: d.lastActivityAt } });
+    // Build update data — only include fields that are actually provided
+    const updateData: any = {};
+    const provided = Object.fromEntries(Object.entries(d).filter(([k, v]) => v !== undefined));
+    // Apply our update mapping (functions handle Date conversion)
+    const updateTemplate: any = { name: d.name, email: d.email, phone: d.phone, company: d.company, source: d.source, status: d.status, stage: d.stage, ownerId: d.ownerId, value: d.value, priority: d.priority, tags: d.tags || [], notes: d.notes, lastActivityAt: d.lastActivityAt ? new Date(d.lastActivityAt) : undefined };
+    for (const key of Object.keys(provided)) {
+      if (key in updateTemplate && updateTemplate[key] !== undefined) {
+        updateData[key] = updateTemplate[key];
+      }
+    }
+
+    const updated = await (db as any).lead.update({ where: { id }, data: updateData });
     await quickAudit(ctx, 'update', 'lead', id, JSON.stringify(d).slice(0, 500));
     return updated;
   });
