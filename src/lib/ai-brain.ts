@@ -576,13 +576,36 @@ export async function askAdvisor(tenantId: string, question: string) {
     maxTokens: 1200,
   }, { tenantId, feature: 'advisor' });
 
-  if (aiRes.ok && aiRes.data) {
+  // If AI provider returned properly with the right shape, use it
+  if (aiRes.ok && aiRes.data && !aiRes.data.degraded && typeof aiRes.data.answer === 'string') {
     return aiRes.data;
   }
+  // Deterministic fallback (always available — AI never blocks the app)
+  const overdueMsg = snapshot.paymentsOverdueCount > 0
+    ? `${snapshot.paymentsOverdueCount} overdue payments worth ₹${formatINR(snapshot.paymentsOverdueAmount)}. `
+    : '';
+  const staleQMsg = snapshot.quotationsStaleCount > 0
+    ? `${snapshot.quotationsStaleCount} stale quotations worth ₹${formatINR(snapshot.quotationsStaleValue)}. `
+    : '';
+  const leadsMsg = snapshot.leadsNeedingFollowup > 0
+    ? `${snapshot.leadsNeedingFollowup} leads need follow-up (no activity in 7+ days). `
+    : '';
+  const lowStockMsg = snapshot.lowStockCount > 0
+    ? `${snapshot.lowStockCount} products below reorder level. `
+    : '';
+  const tasksMsg = snapshot.tasksOverdue > 0
+    ? `${snapshot.tasksOverdue} tasks are overdue. `
+    : '';
   return {
-    answer: 'AI advisor temporarily unavailable. Please try again later.',
+    answer: `AI advisor operating in degraded mode (provider unavailable). Based on snapshot data: ${overdueMsg}${staleQMsg}${leadsMsg}${lowStockMsg}${tasksMsg}Snapshot: ${snapshot.leadsTotal} leads, ${snapshot.customersTotal} customers, ${snapshot.quotationsTotal} quotations, ${snapshot.tasksOpen} open tasks.`,
     sections: [
-      { type: 'FACT' as const, text: `Snapshot shows: ${snapshot.leadsTotal} leads, ${snapshot.customersTotal} customers, ${snapshot.quotationsTotal} quotations, ${snapshot.paymentsOverdueCount} overdue payments.`, evidence: [] },
+      { type: 'FACT' as const, text: `Snapshot shows: ${snapshot.leadsTotal} leads, ${snapshot.customersTotal} customers, ${snapshot.quotationsTotal} quotations, ${snapshot.tasksOpen} open tasks, ${snapshot.paymentsOverdueCount} overdue payments.`, evidence: [] },
+      ...(overdueMsg ? [{ type: 'CALCULATION' as const, text: overdueMsg, evidence: [] }] : []),
+      ...(staleQMsg ? [{ type: 'CALCULATION' as const, text: staleQMsg, evidence: [] }] : []),
+      ...(leadsMsg ? [{ type: 'CALCULATION' as const, text: leadsMsg, evidence: [] }] : []),
+      ...(lowStockMsg ? [{ type: 'CALCULATION' as const, text: lowStockMsg, evidence: [] }] : []),
+      ...(tasksMsg ? [{ type: 'CALCULATION' as const, text: tasksMsg, evidence: [] }] : []),
+      { type: 'RECOMMENDATION' as const, text: 'Review the Action Center for prioritised AI-generated actions to address these issues.', evidence: [] },
     ],
     insufficientData: false,
   };
@@ -612,7 +635,7 @@ export async function executeAction(actionId: string, userId: string, tenantId: 
   let execStatus: 'success' | 'failed' = 'success';
   let execError = '';
   try {
-    const payload = JSON.parse(action.payload || '{}');
+    const payload = (typeof action.payload === 'string' ? JSON.parse(action.payload || '{}') : (action.payload || {}));
     const sourceRefs: any[] = payload.sourceRefs || [];
 
     switch (action.category) {

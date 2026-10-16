@@ -83,18 +83,18 @@ export async function generateBusinessDNA(profile: BusinessProfileInput, tenantI
       data: {
         industry: dna.industry || profile.industry,
         businessModel: dna.businessModel || 'B2B Service',
-        productsServices: JSON.stringify(dna.productsServices || []),
-        customerSegments: JSON.stringify(dna.customerSegments || []),
-        salesStages: JSON.stringify(dna.salesStages || []),
-        operationalStages: JSON.stringify(dna.operationalStages || []),
-        departments: JSON.stringify(dna.departments || []),
-        roles: JSON.stringify(dna.roles || []),
-        kpis: JSON.stringify(dna.kpis || []),
-        workflowDefs: JSON.stringify(dna.workflowDefs || []),
-        automationOpps: JSON.stringify(dna.automationOpps || []),
-        aiPriorities: JSON.stringify(dna.aiPriorities || []),
-        customFields: JSON.stringify(dna.customFields || []),
-        terminology: JSON.stringify(dna.terminology || []),
+        productsServices: (dna.productsServices || []) as any,
+        customerSegments: (dna.customerSegments || []) as any,
+        salesStages: (dna.salesStages || []) as any,
+        operationalStages: (dna.operationalStages || []) as any,
+        departments: (dna.departments || []) as any,
+        roles: (dna.roles || []) as any,
+        kpis: (dna.kpis || []) as any,
+        workflowDefs: (dna.workflowDefs || []) as any,
+        automationOpps: (dna.automationOpps || []) as any,
+        aiPriorities: (dna.aiPriorities || []) as any,
+        customFields: (dna.customFields || []) as any,
+        terminology: (dna.terminology || []) as any,
         generatedBy: aiRes.ok ? 'ai' : 'manual',
         version: { increment: 1 },
         updatedAt: new Date(),
@@ -106,18 +106,18 @@ export async function generateBusinessDNA(profile: BusinessProfileInput, tenantI
       tenantId,
       industry: dna.industry || profile.industry,
       businessModel: dna.businessModel || 'B2B Service',
-      productsServices: JSON.stringify(dna.productsServices || []),
-      customerSegments: JSON.stringify(dna.customerSegments || []),
-      salesStages: JSON.stringify(dna.salesStages || []),
-      operationalStages: JSON.stringify(dna.operationalStages || []),
-      departments: JSON.stringify(dna.departments || []),
-      roles: JSON.stringify(dna.roles || []),
-      kpis: JSON.stringify(dna.kpis || []),
-      workflowDefs: JSON.stringify(dna.workflowDefs || []),
-      automationOpps: JSON.stringify(dna.automationOpps || []),
-      aiPriorities: JSON.stringify(dna.aiPriorities || []),
-      customFields: JSON.stringify(dna.customFields || []),
-      terminology: JSON.stringify(dna.terminology || []),
+      productsServices: (dna.productsServices || []) as any,
+      customerSegments: (dna.customerSegments || []) as any,
+      salesStages: (dna.salesStages || []) as any,
+      operationalStages: (dna.operationalStages || []) as any,
+      departments: (dna.departments || []) as any,
+      roles: (dna.roles || []) as any,
+      kpis: (dna.kpis || []) as any,
+      workflowDefs: (dna.workflowDefs || []) as any,
+      automationOpps: (dna.automationOpps || []) as any,
+      aiPriorities: (dna.aiPriorities || []) as any,
+      customFields: (dna.customFields || []) as any,
+      terminology: (dna.terminology || []) as any,
       generatedBy: aiRes.ok ? 'ai' : 'manual',
       version: 1,
     },
@@ -249,12 +249,19 @@ export async function getBusinessDNA(tenantId: string) {
   };
 }
 
-export function safeParseArray(s: string | null | undefined): any[] {
+export function safeParseArray(s: any): any[] {
   if (!s) return [];
-  try {
-    const v = JSON.parse(s);
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
+  // Postgres Json fields return as native objects (already parsed)
+  if (Array.isArray(s)) return s;
+  // SQLite stores as stringified JSON
+  if (typeof s === 'string') {
+    try {
+      const v = JSON.parse(s);
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
   }
+  // Object (e.g., for workflowDefs) — return as-is if array, else []
+  return [];
 }

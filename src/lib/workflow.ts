@@ -191,8 +191,10 @@ function evaluateConditions(conditions: any, ctx: WorkflowContext): boolean {
   return true;
 }
 
-function safeParseJSON(s: string): any {
+function safeParseJSON(s: any): any {
   if (!s) return {};
+  // Postgres Json fields return native objects (already parsed)
+  if (typeof s === 'object') return s;
   try {
     return JSON.parse(s);
   } catch {
