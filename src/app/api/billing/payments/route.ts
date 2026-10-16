@@ -70,9 +70,12 @@ export async function POST(req: NextRequest) {
 
     const finalAmount = Math.max(0, basePrice - discountPaise);
 
-    // Get current UPI receiver
+    // Get current UPI receiver — NO hardcoded fallback; super admin must set this
     const upiSetting = await db.platformSetting.findUnique({ where: { key: 'UPI_RECEIVER' } });
-    const upiReceiver = upiSetting?.value || '9301056006';
+    const upiReceiver = upiSetting?.value || '';
+    if (!upiReceiver) {
+      return NextResponse.json({ error: 'upi_not_configured', message: 'Super Admin must configure UPI receiver before payments can be initiated. Use /api/super-admin/upi-receiver.' }, { status: 503 });
+    }
 
     // Find tenant info
     const tenant = await db.tenant.findUnique({ where: { id: ctx.tenantId! } });

@@ -128,7 +128,7 @@ export function RecoveryView() {
                 <>
                   <div>
                     <Label className="text-xs">Super Admin email</Label>
-                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@opera.ai" />
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
                   </div>
                   <Button onClick={initiate} disabled={busy || !email} className="w-full">
                     {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}

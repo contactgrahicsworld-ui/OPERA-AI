@@ -1068,7 +1068,7 @@ model SubscriptionPayment {
   finalAmountSnapshot Int // paise — server-computed
   durationDaysSnapshot Int
   billingCycleSnapshot String // monthly | yearly | custom
-  upiReceiverSnapshot String // 9301056006 (or whatever super admin sets)
+  upiReceiverSnapshot String // Set by super admin during first-admin setup (no hardcoded default)
   utr String? @unique // customer-submitted UTR
   utrSubmittedAt DateTime?
   paymentDate DateTime? // when UTR submitted

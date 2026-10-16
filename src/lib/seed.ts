@@ -1,10 +1,13 @@
-// OPERA AI — Seed data + initial platform settings (NO hardcoded super admin)
-// Per spec: NO default super admin. First super admin must be created via /api/setup-first-admin.
+// OPERA AI — Seed data (NO hardcoded credentials)
+// Per spec: NO default super admin, NO hardcoded UPI receiver, NO hardcoded WhatsApp.
+// First super admin must be created via /api/setup-first-admin.
+// UPI receiver + WhatsApp must be set by super admin via UI after first-admin setup.
 
 import { db } from './db';
 
 export async function ensureSeedData() {
-  // Plans (if not exist)
+  // Plans (if not exist) — these are TEMPLATES, not credentials.
+  // Super Admin can edit/delete/create new plans via /api/super-admin/plans.
   const planCount = await db.plan.count();
   if (planCount === 0) {
     const plans = [
@@ -18,16 +21,19 @@ export async function ensureSeedData() {
     }
   }
 
-  // Platform settings (only if not exist)
+  // Platform settings — NO hardcoded credentials. Empty values for super admin to fill in.
   const settingsCount = await db.platformSetting.count();
   if (settingsCount === 0) {
     const defaults = [
-      { key: 'UPI_RECEIVER', value: '9301056006', description: 'Default UPI receiver for subscription payments (Super Admin controlled)', isSecret: false },
-      { key: 'UPI_RECEIVER_NAME', value: 'OPERA AI Operations', description: 'Display name for UPI receiver', isSecret: false },
+      // UPI_RECEIVER is intentionally empty — super admin must set via /api/super-admin/upi-receiver
+      { key: 'UPI_RECEIVER', value: '', description: 'UPI receiver for subscription payments. Set by Super Admin after first-admin setup. NO hardcoded default.', isSecret: false },
+      { key: 'UPI_RECEIVER_NAME', value: '', description: 'Display name for UPI receiver. Set by Super Admin.', isSecret: false },
       { key: 'FIRST_ADMIN_SETUP_DONE', value: 'false', description: 'Set to true after first Super Admin creation; locks the first-time-setup flow permanently', isSecret: false },
       { key: 'WHATSAPP_PROVIDER', value: 'none', description: 'WhatsApp provider (none | twilio | meta | gupshup | interakt). Default none — WhatsApp is CONFIGURATION REQUIRED', isSecret: false },
       { key: 'WHATSAPP_API_TOKEN', value: '', description: 'API token for WhatsApp provider (encrypted at rest)', isSecret: true },
-      { key: 'SUPER_ADMIN_WHATSAPP', value: '9301056006', description: 'Super Admin registered WhatsApp for password recovery', isSecret: false },
+      // SUPER_ADMIN_WHATSAPP is intentionally empty — set during first-admin setup from user input
+      { key: 'SUPER_ADMIN_WHATSAPP', value: '', description: 'Super Admin registered WhatsApp for password recovery. Set during first-admin setup. NO hardcoded default.', isSecret: false },
+      { key: 'SUPER_ADMIN_EMAIL', value: '', description: 'Primary super admin email. Set during first-admin setup. NO hardcoded default.', isSecret: false },
     ];
     for (const s of defaults) {
       await db.platformSetting.create({ data: s });
@@ -36,4 +42,5 @@ export async function ensureSeedData() {
 
   // CRITICAL: NO hardcoded super admin per spec.
   // First super admin must be created via /api/setup-first-admin (locks after first creation).
+  // The setup requires FIRST_ADMIN_SETUP_KEY env var (deployer-controlled secret).
 }

@@ -1,6 +1,7 @@
 // First-time Super Admin setup
 // Only runs when FIRST_ADMIN_SETUP_DONE = false. Locks permanently after first creation.
 // Per spec: NO hardcoded super admin username/email/password/OTP/recovery secret.
+// Also collects UPI receiver + WhatsApp number during setup — NO hardcoded defaults anywhere.
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import bcrypt from 'bcryptjs';
@@ -11,6 +12,9 @@ const SETUP_SCHEMA = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
   whatsappNumber: z.string().regex(/^[0-9]{10,15}$/, 'Must be 10-15 digits (no + prefix)'),
+  // UPI receiver is collected at first-admin setup (NO hardcoded default)
+  upiReceiver: z.string().min(5, 'UPI receiver is required — format: name@bank or 10-digit mobile').max(100),
+  upiReceiverName: z.string().min(2, 'Display name required').max(100).optional().or(z.literal('').transform(() => 'OPERA AI Operations')),
   password: z.string().min(10, 'Password must be at least 10 chars'),
   confirmPassword: z.string(),
   // Simple verification: the deployer sets FIRST_ADMIN_SETUP_KEY env var; the setup-UI must provide the same.
@@ -51,6 +55,13 @@ export async function POST(req: NextRequest) {
 
   const passwordHash = await bcrypt.hash(d.password, 12);
 
+  // Validate UPI format (name@bank OR 10-digit mobile)
+  const cleanUpi = d.upiReceiver.trim();
+  const isValidUpi = /^[a-zA-Z0-9.\-_]{2,50}@[a-zA-Z0-9.\-_]{2,30}$/.test(cleanUpi) || /^[0-9]{10}$/.test(cleanUpi);
+  if (!isValidUpi) {
+    return NextResponse.json({ error: 'invalid_upi_format', message: 'UPI must be name@bank OR 10-digit mobile' }, { status: 400 });
+  }
+
   // Use a transaction to ensure atomic creation
   const user = await db.$transaction(async (tx) => {
     const u = await tx.user.create({
@@ -71,7 +82,7 @@ export async function POST(req: NextRequest) {
       update: { value: 'true' },
     });
 
-    // Save the registered whatsapp for password recovery
+    // Save super admin email + WhatsApp (for password recovery)
     await tx.platformSetting.upsert({
       where: { key: 'SUPER_ADMIN_EMAIL' },
       create: { key: 'SUPER_ADMIN_EMAIL', value: d.email, description: 'Primary super admin email' },
@@ -82,6 +93,19 @@ export async function POST(req: NextRequest) {
       create: { key: 'SUPER_ADMIN_WHATSAPP', value: d.whatsappNumber, description: 'Super admin registered WhatsApp for password recovery' },
       update: { value: d.whatsappNumber },
     });
+
+    // Save UPI receiver (NO hardcoded default — set during first-admin setup)
+    await tx.platformSetting.upsert({
+      where: { key: 'UPI_RECEIVER' },
+      create: { key: 'UPI_RECEIVER', value: cleanUpi, description: 'UPI receiver for subscription payments (set during first-admin setup)' },
+      update: { value: cleanUpi },
+    });
+    await tx.platformSetting.upsert({
+      where: { key: 'UPI_RECEIVER_NAME' },
+      create: { key: 'UPI_RECEIVER_NAME', value: (d.upiReceiverName || 'OPERA AI Operations'), description: 'Display name for UPI receiver' },
+      update: { value: (d.upiReceiverName || 'OPERA AI Operations') },
+    });
+
     return u;
   });
 
@@ -94,7 +118,7 @@ export async function POST(req: NextRequest) {
         action: 'first_super_admin_setup',
         entity: 'User',
         entityId: user.id,
-        details: { email: d.email, name: d.name, whatsapp: d.whatsappNumber, ip: extractIp(req.headers) },
+        details: { email: d.email, name: d.name, whatsapp_masked: d.whatsappNumber.slice(-4).padStart(d.whatsappNumber.length, '*'), upi_masked: cleanUpi.slice(-4).padStart(cleanUpi.length, '*'), ip: extractIp(req.headers) },
         ip: extractIp(req.headers),
         userAgent: req.headers.get('user-agent') || '',
         severity: 'critical',
@@ -102,7 +126,7 @@ export async function POST(req: NextRequest) {
     });
   } catch {}
 
-  return NextResponse.json({ ok: true, userId: user.id, message: 'First Super Admin created. First-time setup is now LOCKED.' });
+  return NextResponse.json({ ok: true, userId: user.id, message: 'First Super Admin created. First-time setup is now LOCKED. UPI receiver configured.' });
 }
 
 // GET: returns whether first-time setup is needed (no auth required, this is a public setup-status check)

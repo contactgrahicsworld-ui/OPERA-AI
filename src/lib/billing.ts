@@ -81,7 +81,8 @@ async function markWhatsAppStatus(invoiceId: string, status: string, errorMessag
 // ============================================================
 export async function getUpiReceiver(): Promise<string> {
   const setting = await db.platformSetting.findUnique({ where: { key: 'UPI_RECEIVER' } });
-  return setting?.value || '9301056006';
+  // NO hardcoded fallback — super admin MUST set this via /api/super-admin/upi-receiver
+  return setting?.value || 'NOT_CONFIGURED';
 }
 
 export async function setUpiReceiver(newReceiver: string, ctx: AuthContext): Promise<void> {

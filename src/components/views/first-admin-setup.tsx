@@ -18,6 +18,7 @@ export function FirstAdminSetupView() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [upiReceiver, setUpiReceiver] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [setupKey, setSetupKey] = useState('');
@@ -30,12 +31,13 @@ export function FirstAdminSetupView() {
         name,
         email,
         whatsappNumber,
+        upiReceiver,
         password,
         confirmPassword,
         setupKey,
       });
       if (!res.ok) throw new Error(res.error || 'setup_failed');
-      toast.success('First Super Admin created. Setup is now LOCKED.');
+      toast.success('First Super Admin created. Setup is now LOCKED. UPI receiver configured.');
       // Auto-login: switch to login view
       setTimeout(() => {
         setView('login');
@@ -46,13 +48,14 @@ export function FirstAdminSetupView() {
       else if (msg === 'invalid_setup_key') setError('Invalid setup key. The deployer controls this key — check your env vars.');
       else if (msg === 'setup_locked') setError('Setup is already LOCKED. A first Super Admin has already been created.');
       else if (msg === 'password_mismatch') setError('Passwords do not match.');
+      else if (msg === 'invalid_upi_format') setError('Invalid UPI format. Must be name@bank OR 10-digit mobile.');
       else setError(msg);
     } finally {
       setBusy(false);
     }
   }
 
-  const valid = name.length >= 2 && /\S+@\S+\.\S+/.test(email) && /^[0-9]{10,15}$/.test(whatsappNumber) && password.length >= 10 && password === confirmPassword && setupKey.length >= 10;
+  const valid = name.length >= 2 && /\S+@\S+\.\S+/.test(email) && /^[0-9]{10,15}$/.test(whatsappNumber) && upiReceiver.length >= 5 && password.length >= 10 && password === confirmPassword && setupKey.length >= 10;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/20">
@@ -96,12 +99,17 @@ export function FirstAdminSetupView() {
               </div>
               <div>
                 <Label className="text-xs">Email *</Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@opera.ai" />
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
               </div>
               <div>
                 <Label className="text-xs">Registered WhatsApp number (10-15 digits, no +) *</Label>
-                <Input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value.replace(/[^0-9]/g, ''))} placeholder="9301056006" maxLength={15} />
-                <p className="text-[10px] text-muted-foreground mt-1">Used for password recovery. Must be 10-15 digits.</p>
+                <Input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Your registered WhatsApp number" maxLength={15} />
+                <p className="text-[10px] text-muted-foreground mt-1">Used for password recovery. Must be 10-15 digits. NO default value — you must provide your own.</p>
+              </div>
+              <div>
+                <Label className="text-xs">UPI receiver for subscription payments *</Label>
+                <Input value={upiReceiver} onChange={(e) => setUpiReceiver(e.target.value.trim())} placeholder="yourname@bank OR 10-digit mobile" />
+                <p className="text-[10px] text-muted-foreground mt-1">Customers pay subscription fees to this UPI ID. NO hardcoded default — set your own.</p>
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
