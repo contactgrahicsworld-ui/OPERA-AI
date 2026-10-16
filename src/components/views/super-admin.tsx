@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Building2, CreditCard, ScrollText, Cpu, Power, Loader2, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Shield, Building2, CreditCard, ScrollText, Cpu, Power, Loader2, Check, Settings2, Smartphone, Wallet, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Overview { tenants: number; users: number; plans: number; aiCalls: number; }
@@ -82,6 +84,7 @@ export function SuperAdminView() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tenants">Tenants</TabsTrigger>
           <TabsTrigger value="plans">Plans</TabsTrigger>
+          <TabsTrigger value="settings">Platform Settings</TabsTrigger>
           <TabsTrigger value="audit">Audit</TabsTrigger>
           <TabsTrigger value="ai_usage">AI Usage</TabsTrigger>
         </TabsList>
@@ -195,6 +198,10 @@ export function SuperAdminView() {
           <p className="text-xs text-muted-foreground">To edit plans, use the API or contact engineering. (UI plan editor coming soon.)</p>
         </TabsContent>
 
+        <TabsContent value="settings" className="space-y-3">
+          <PlatformSettingsCard />
+        </TabsContent>
+
         <TabsContent value="audit" className="space-y-3">
           <Card>
             <CardContent className="p-0">
@@ -291,5 +298,118 @@ function Stat({ label, value }: { label: string; value: number | string }) {
       <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{label}</div>
       <div className="text-lg font-semibold mt-0.5">{value}</div>
     </div>
+  );
+}
+
+function PlatformSettingsCard() {
+  const [contact, setContact] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [whatsapp, setWhatsapp] = useState('');
+  const [email, setEmail] = useState('');
+  const [upi, setUpi] = useState('');
+  const [upiName, setUpiName] = useState('');
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [contactRes, upiRes] = await Promise.all([
+        apiGet('/api/super-admin/contact'),
+        apiGet('/api/super-admin/upi-receiver'),
+      ]);
+      setContact(contactRes);
+      setWhatsapp(contactRes.whatsappNumber || '');
+      setEmail(contactRes.contactEmail || '');
+      setUpi(upiRes.upiReceiver === 'NOT_CONFIGURED' ? '' : upiRes.upiReceiver);
+      setUpiName(upiRes.upiReceiverName || '');
+    } catch (e: any) {
+      toast.error('Failed: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function saveContact() {
+    setSaving(true);
+    try {
+      await apiPost('/api/super-admin/contact', {
+        whatsappNumber: whatsapp || undefined,
+        contactEmail: email || undefined,
+      });
+      toast.success('Contact info saved');
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveUpi() {
+    setSaving(true);
+    try {
+      await apiPost('/api/super-admin/upi-receiver', { upiReceiver: upi });
+      toast.success('UPI receiver saved');
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <Skeleton className="h-64" />;
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Wallet className="h-4 w-4 text-primary" /> UPI Receiver for subscription payments</CardTitle>
+          <CardDescription className="text-xs">Customers pay subscription fees to this UPI ID. NO hardcoded default — set your own.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label className="text-xs">UPI ID (name@bank or 10-digit mobile)</Label>
+            <Input value={upi} onChange={(e) => setUpi(e.target.value.trim())} placeholder="yourname@bank" />
+          </div>
+          <div>
+            <Label className="text-xs">Display name (shown on customer payment screen)</Label>
+            <Input value={upiName} onChange={(e) => setUpiName(e.target.value)} placeholder="Your Business Name" />
+          </div>
+          <Button onClick={saveUpi} disabled={saving || upi.length < 5}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+            Save UPI receiver
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Smartphone className="h-4 w-4 text-primary" /> Super Admin contact (for password recovery)</CardTitle>
+          <CardDescription className="text-xs">Used to send WhatsApp OTP during password recovery. NO hardcoded default — set your own.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label className="text-xs"><Mail className="h-3 w-3 inline mr-1" /> Contact email</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
+          </div>
+          <div>
+            <Label className="text-xs"><Smartphone className="h-3 w-3 inline mr-1" /> WhatsApp number (10-15 digits, no +)</Label>
+            <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Your WhatsApp number" maxLength={15} />
+          </div>
+          <Button onClick={saveContact} disabled={saving || (whatsapp.length > 0 && whatsapp.length < 10)}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+            Save contact info
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-amber-50 border-amber-200">
+        <CardContent className="p-3 text-xs text-amber-900">
+          <p className="font-medium mb-1">⚠ Zero hardcoded credentials policy</p>
+          <p>OPERA AI contains NO hardcoded super admin credentials, NO default UPI receiver, NO default WhatsApp number. You must set all sensitive values via this UI. Plans remain as templates (Super Admin can edit/create via API).</p>
+        </CardContent>
+      </Card>
+    </>
   );
 }
