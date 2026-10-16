@@ -414,9 +414,12 @@ export async function generateInsights(tenantId: string) {
       maxTokens: 1500,
     }, { tenantId, feature: 'insight_gen' });
 
-    if (aiRes.ok && aiRes.data?.insights?.length) {
+    if (aiRes.ok && aiRes.data?.insights?.length && !aiRes.data.degraded) {
       for (const ins of aiRes.data.insights as any[]) {
-        insights.push(ins);
+        // Validate each insight has the required fields
+        if (ins.title && ins.type && ins.priority && ins.category) {
+          insights.push(ins);
+        }
       }
     }
   }

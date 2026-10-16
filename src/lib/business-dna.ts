@@ -68,8 +68,15 @@ export async function generateBusinessDNA(profile: BusinessProfileInput, tenantI
   }, { tenantId, feature: 'business_dna' });
 
   let dna: z.infer<typeof DNA_SCHEMA>;
-  if (aiRes.ok && aiRes.data) {
-    dna = aiRes.data as z.infer<typeof DNA_SCHEMA>;
+  // Use AI response only if it actually conforms to the expected schema (not degraded)
+  if (aiRes.ok && aiRes.data && !aiRes.data.degraded && aiRes.data.industry) {
+    try {
+      // Validate the response matches DNA_SCHEMA
+      dna = DNA_SCHEMA.parse(aiRes.data);
+    } catch {
+      // Schema validation failed — use deterministic fallback
+      dna = buildFallbackDNA(profile);
+    }
   } else {
     // Fallback: deterministic DNA from inputs (no AI dependency)
     dna = buildFallbackDNA(profile);
