@@ -177,19 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function seedDemoData() {
-    try {
-      const res = await apiPost('/api/seed-demo');
-      toast.success(`Seeded ${res.counts.leads} leads, ${res.counts.customers} customers, ${res.counts.quotations} quotations`);
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (e: any) {
-      if (e.message === 'tenant_has_data') {
-        toast.info('Your workspace already has data.');
-      } else {
-        toast.error('Failed to seed demo data: ' + e.message);
-      }
-    }
-  }
+  // Demo data seeding has been removed per spec — users create real records via 'New' buttons
 
   const groupedNav = GROUP_ORDER.map((g) => ({
     group: g,
@@ -255,17 +243,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      {/* Footer */}
-      {tenant && (
-        <div className="border-t border-sidebar-border p-2 space-y-1">
-          <button
-            onClick={seedDemoData}
-            className="w-full text-xs px-3 py-2 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground text-left"
-          >
-            + Seed demo data
-          </button>
-        </div>
-      )}
+      {/* Footer — no fake-data seeding button. Users create real records via 'New' buttons. */}
     </div>
   );
 
