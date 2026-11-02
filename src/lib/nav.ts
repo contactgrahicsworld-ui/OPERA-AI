@@ -48,7 +48,10 @@ export type View =
   | 'billing'
   | 'super_admin_payments'
   | 'first_admin_setup'
-  | 'recovery';
+  | 'recovery'
+  | 'field_sales'
+  | 'ai_receptionist'
+  | 'ai_telecaller';
 
 interface NavState {
   view: View;

@@ -48,6 +48,9 @@ import {
   ChevronDown,
   Loader2,
   CreditCard,
+  MapPin,
+  Bot,
+  PhoneCall,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -135,6 +138,9 @@ const NAV: NavItem[] = [
   { id: 'super_admin', label: 'Super Admin', icon: Shield, group: 'Platform', superAdminOnly: true },
   { id: 'super_admin_payments', label: 'Payments Dashboard', icon: CreditCard, group: 'Platform', superAdminOnly: true },
   { id: 'billing', label: 'Billing', icon: CreditCard, group: 'AI' },
+  { id: 'field_sales', label: 'Field Sales', icon: MapPin, group: 'Operations' },
+  { id: 'ai_receptionist', label: 'AI Receptionist', icon: Bot, group: 'AI' },
+  { id: 'ai_telecaller', label: 'AI Telecaller', icon: PhoneCall, group: 'AI' },
 ];
 
 const GROUP_ORDER = ['AI', 'CRM', 'Operations', 'Sales', 'Team', 'Inventory', 'Marketing', 'Settings', 'Platform'];

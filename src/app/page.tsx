@@ -48,6 +48,9 @@ import { AnalyticsView } from '@/components/views/analytics';
 import { SuperAdminView } from '@/components/views/super-admin';
 import { BillingView } from '@/components/views/billing';
 import { SuperAdminPaymentsView } from '@/components/views/super-admin-payments';
+import { FieldSalesView } from '@/components/views/field-sales';
+import { AIReceptionistView } from '@/components/views/ai-receptionist';
+import { AITelecallerView } from '@/components/views/ai-telecaller';
 import { Loader2 } from 'lucide-react';
 
 export default function Home() {
@@ -199,6 +202,9 @@ function renderView(view: string, user: any) {
     case 'analytics': return <AnalyticsView />;
     case 'billing': return <BillingView />;
     case 'super_admin_payments': return <SuperAdminPaymentsView />;
+    case 'field_sales': return <FieldSalesView />;
+    case 'ai_receptionist': return <AIReceptionistView />;
+    case 'ai_telecaller': return <AITelecallerView />;
     case 'super_admin': return <SuperAdminView />;
     default: return <ActionCenter />;
   }
