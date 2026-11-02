@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { MapPin, CheckIn, CheckOut, Plus, RefreshCw, Loader2, Users } from 'lucide-react';
+import { MapPin, LogIn, LogOut, Plus, RefreshCw, Loader2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Visit {
@@ -188,7 +188,7 @@ export function FieldSalesView() {
                       <td className="px-4 py-3 text-right">
                         {v.status === 'checked-in' && (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setCheckoutVisit(v); setOutcome(''); setCheckoutNotes(''); }}>
-                            <CheckOut className="h-3 w-3 mr-1" /> Check out
+                            <LogOut className="h-3 w-3 mr-1" /> Check out
                           </Button>
                         )}
                       </td>
@@ -204,7 +204,7 @@ export function FieldSalesView() {
       {/* Check-in modal */}
       <Dialog open={checkinOpen} onOpenChange={setCheckinOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><CheckIn className="h-4 w-4 text-primary" /> Check in for field visit</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><LogIn className="h-4 w-4 text-primary" /> Check in for field visit</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Visit title *</Label>
@@ -250,7 +250,7 @@ export function FieldSalesView() {
       {/* Check-out modal */}
       <Dialog open={!!checkoutVisit} onOpenChange={(o) => !o && setCheckoutVisit(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><CheckOut className="h-4 w-4 text-primary" /> Check out</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><LogOut className="h-4 w-4 text-primary" /> Check out</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="text-xs bg-muted/30 rounded-md p-2.5">
               <div className="font-medium">{checkoutVisit?.title}</div>
