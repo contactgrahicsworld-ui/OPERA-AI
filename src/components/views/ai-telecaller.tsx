@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Phone, Script, Save, Sparkles, MessageSquare } from 'lucide-react';
+import { Loader2, Phone, ScrollText, Save, Sparkles, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ScriptData {
@@ -103,7 +103,7 @@ export function AITelecallerView() {
           <div className="flex gap-2">
             <Input value={leadId} onChange={(e) => setLeadId(e.target.value)} placeholder="cmul... (Lead ID)" />
             <Button onClick={fetchScript} disabled={loading || !leadId.trim()}>
-              {loading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Script className="h-4 w-4 mr-1.5" />}
+              {loading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <ScrollText className="h-4 w-4 mr-1.5" />}
               Fetch script
             </Button>
           </div>
@@ -140,7 +140,7 @@ export function AITelecallerView() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Script className="h-4 w-4 text-primary" /> Suggested script
+                <ScrollText className="h-4 w-4 text-primary" /> Suggested script
                 {data.callPreparation.aiScript && <Badge variant="secondary" className="text-[10px] bg-violet-100 text-violet-900"><Sparkles className="h-3 w-3 mr-1" /> AI-enhanced</Badge>}
               </CardTitle>
             </CardHeader>
